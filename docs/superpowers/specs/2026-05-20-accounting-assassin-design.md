@@ -199,7 +199,7 @@ App 本身使用 **Tauri + React + TypeScript** 实现,以 macOS 原生 `.app` �
 | 06 | 第一次与真实的 Claude Code 对话 | 真实 | 🎯 | 第一次 claude 命令 |
 | **Part III · 把 Claude Code 用熟** | | | | |
 | 07 | 在自己的项目里工作:CLAUDE.md / --continue / 文件管理 | 真实 | — | 写发票 OCR 脚本 |
-| 08 | 不怕弄坏东西:Git 与"撤销" | 真实 | — | 版本管理基础 |
+| 08 | **Bug 来了怎么办:Debug + 撤销** | 真实 | — | 读 traceback / 向 AI 提 bug / git reset 作为实验安全网(详见 § 5.4)|
 | 09 | Skills:把重复工作变成"一句话搞定" | 真实 | — | 写"整理本月发票"Skill |
 | 10 | Hooks 与 MCP:自动化 + 给 AI 长出手脚 | 真实 | 🎯 | SQLite MCP + 自动校验 Hook |
 | **Part IV · Codex 与 Cursor** | | | | |
@@ -260,6 +260,105 @@ App 本身使用 **Tauri + React + TypeScript** 实现,以 macOS 原生 `.app` �
 数据来源:
 - 银行流水:她从网银导出的 CSV / XLSX(假设网银能导)
 - 报表:她现有 Excel 模板,脚本读 + 改
+
+### 5.4 调试教学策略(Ch 8 详细展开)
+
+**Ch 8 标题**:**"Bug 来了怎么办:Debug + 撤销"**(原"Git 与撤销"的整合升级)
+
+零基础用户在 Ch 7 开始让 Claude Code 写真实脚本后,**必然**会遇到 bug。如果没有系统教 debug,她遇到第一个看不懂的英文 traceback 就会放弃。Ch 8 是整门课的"心理安全网"章节,**比 Skills / Hooks / MCP 都更关键**。
+
+#### 5.4.1 Ch 8 七大教学要点
+
+| # | 要点 | 教学方式 |
+|---|---|---|
+| 1 | **Bug 不是失败,是对话** | 重塑心理预期:写代码 90% 时间在修 bug,不是写代码本身有问题 |
+| 2 | **traceback 倒着读** | 教她最后一行 + 行号定位 80% 的 bug,演示读 5 种常见报错:`SyntaxError` / `NameError` / `TypeError` / `KeyError` / `FileNotFoundError` |
+| 3 | **给 AI 提 bug 的"四段式"标准模板** | 一个标准沟通模板,见 § 5.4.2 |
+| 4 | **"再跑一遍"验证原则** | 永远不要相信"我已经修好了" —— AI 改完代码,她必须自己跑一遍才能说修好 |
+| 5 | **git reset 作为实验安全网** | 改坏了不慌:`git status` 看现状、`git diff` 看改了什么、`git checkout .` 回到上次能跑的版本 |
+| 6 | **何时停下来找老公** | 试 3 次 AI 还修不好 / 报错完全看不懂 / AI 开始绕圈,就该停。**这是个能力**,不是失败 |
+| 7 | **会计数据脏的特殊性** | 空行 / 合并单元格 / 日期格式不一致 / 币种 / 负数表示法 / 编码问题。教她"假设数据是脏的"作为默认心智 |
+
+#### 5.4.2 给 AI 提 bug 的"四段式"模板
+
+```
+【期望】
+我让脚本把 invoices.csv 里的发票按类目汇总到 summary.xlsx
+
+【实际】
+脚本跑出来 summary.xlsx 是空的,什么都没有
+
+【报错原文】(整段复制,不要删英文)
+Traceback (most recent call last):
+  File "summarize.py", line 12, in <module>
+    df = pd.read_csv("invoices.csv")
+  ...
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0xb7
+
+【我试过的】
+- 我又跑了一次,还是一样
+- 我打开了 invoices.csv,看着挺正常
+```
+
+**为什么这个模板有效**:
+- "期望 vs 实际" 让 AI 知道你想要什么,不是空泛地说"不对"
+- "报错原文整段复制"让 AI 直接拿到诊断信息(而不是她描述报错)
+- "我试过的"防止 AI 重复建议她已试过的方案
+
+模板会做成 App 内一个**可一键复制的卡片组件**,她按那个按钮自动把当前沙箱/真实环境的报错填进去,只需要补充"期望"和"试过的"。
+
+#### 5.4.3 "出 bug 时的标准工作流"流程图(Ch 8 核心交付)
+
+```
+出 bug 了
+   │
+   ▼
+深呼吸 → 不慌,bug 是对话不是失败
+   │
+   ▼
+看 traceback 最后一行(行号 + 报错类型)
+   │
+   ▼
+按"四段式"模板把信息整理好
+   │
+   ▼
+粘给 Claude Code,让它解释 + 修复
+   │
+   ▼
+AI 改完代码 → 你自己跑一遍验证
+   │
+   ├─ 修好了 → git commit 一份快照,继续
+   │
+   └─ 没修好 / 改坏了
+        │
+        ▼
+   git status / git diff 看 AI 改了什么
+        │
+        ▼
+   重试 ≤ 3 次
+        │
+        ├─ 修好 → 继续
+        ├─ 仍卡 → git checkout . 回到上次能跑的版本,再问老公
+        └─ 报错完全看不懂 → 直接按"我卡住了"
+```
+
+这张图会做成 Ch 8 一开始就给出的 "海报",她以后随时翻回来看。
+
+#### 5.4.4 真实场景实操(Ch 8 练习设计)
+
+Ch 8 用 **3 个真实 bug 场景** 让她亲手走完整工作流:
+
+| 练习 | Bug 类型 | 她需要做的 |
+|---|---|---|
+| 练习 1 | 编码 bug:发票 CSV 是 GBK,代码假设 UTF-8 | 读 traceback → 套模板 → 让 AI 修 → 验证 |
+| 练习 2 | 静默 bug:求和漏一行(因为有合并单元格)| 学会"对数"验证,而不是相信脚本输出 |
+| 练习 3 | AI 越改越坏:多轮对话让 Claude 把简单代码改复杂、跑不通 | 学会 `git checkout .` 回退 + 重新提问 |
+
+#### 5.4.5 进阶引用:Claude Code 自带的 systematic-debugging 工作流
+
+到 Ch 9-10 (Skills / Hooks) 时,可以告诉她**Claude Code 本身有一个内置的"systematic-debugging" 工作流**(superpowers 插件的一部分)。她未来遇到复杂 bug 可以直接说"用 systematic-debugging 帮我",让 AI 走一套既定的诊断流程。这是 Ch 8 教的"基本工作流"的**专业版**。
+
+不在 Ch 8 主线讲,作为彩蛋 / 进阶引用,让她知道"这件事是有标准做法的,我现在学的是入门版"。
 
 ---
 
@@ -660,6 +759,7 @@ jobs:
 | **发票 OCR 主线** | macOS Apple Vision + pdfplumber + 人机降级 | 零依赖、零费用、教学友好(§ 5.3.1) |
 | **错误处理承诺** | 改为可验收措辞("隔离 + 翻译 + 兜底",不承诺"永不崩溃")| Codex review 指出绝对承诺不可验收(§ 8.1 / § 8.5) |
 | **安装/更新失败分支** | 在 § 10.2 / 10.3 显式列出兜底路径(右键失败 / xattr / 系统升级 / App 位置异常 / 更新失败)| Codex review 指出原分发链路太脆 |
+| **Debug 教学整合** | 把 Ch 8 从"Git 与撤销"升级为"Bug 来了怎么办:Debug + 撤销",新增 § 5.4 调试教学策略 | 用户指出原文档无系统 debug 教学,vibe coding 必然遇 bug,零基础用户的 debug 元能力是关键短板 |
 | commit 规范 | 不带 Co-Authored-By 等 AI trailer | 用户全局偏好 |
 
 ---
