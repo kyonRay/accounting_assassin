@@ -1,3 +1,5 @@
+import { LessonViewer } from "@/modules/LessonViewer";
+
 export default function App() {
   return (
     <div className="h-screen w-screen grid grid-cols-[260px_1fr_400px] grid-rows-[1fr_32px]">
@@ -6,7 +8,7 @@ export default function App() {
         <p className="text-muted text-xs mt-2">侧边栏(占位)</p>
       </aside>
       <main className="row-span-1 bg-white p-8 overflow-y-auto">
-        <p className="text-muted">课程主体(占位)</p>
+        <LessonViewer slug="00-hello" />
       </main>
       <aside className="row-span-1 bg-sandbox/5 border-l border-graphite/10 p-4">
         <span className="inline-block px-2 py-1 rounded-md bg-sandbox/10 text-sandbox text-xs">
