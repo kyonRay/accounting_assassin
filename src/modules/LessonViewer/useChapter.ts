@@ -16,11 +16,13 @@ type State =
   | { status: "error"; error: Error };
 
 type Action =
+  | { type: "loading" }
   | { type: "loaded"; Lesson: ComponentType }
   | { type: "failed"; error: Error };
 
 function reducer(_prev: State, action: Action): State {
   if (action.type === "loaded") return { status: "ready", Lesson: action.Lesson };
+  if (action.type === "loading") return { status: "loading" };
   return { status: "error", error: action.error };
 }
 
@@ -28,6 +30,7 @@ export function useChapter(slug: string) {
   const [state, dispatch] = useReducer(reducer, { status: "loading" });
 
   useEffect(() => {
+    dispatch({ type: "loading" });
     let cancelled = false;
 
     const key = `/content/chapters/${slug}/lesson.mdx`;
