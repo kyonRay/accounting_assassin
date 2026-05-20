@@ -71,6 +71,15 @@ describe("PyodideRunner", () => {
       expect(result.stdout).toContain("hello from vfs");
     });
 
+    it("handles mountPoint with quote characters", async () => {
+      const fs = createVirtualFs();
+      const localRunner = await createPyodideRunner({ fs, mountPoint: "/odd'name" });
+      await localRunner.syncFromVfs(); // must not throw / corrupt Python
+      const result = await localRunner.run("import os; print(os.getcwd())");
+      expect(result.ok).toBe(true);
+      expect(result.stdout.trim()).toBe("/odd'name");
+    });
+
     it("syncFromVfs is idempotent: calling twice does not error", async () => {
       const fs = createVirtualFs();
       await fs.write("data.csv", "col\n1\n2\n");

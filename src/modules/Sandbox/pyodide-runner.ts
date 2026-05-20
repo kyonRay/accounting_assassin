@@ -76,8 +76,9 @@ export async function createPyodideRunner(
     if (err?.errno !== 17) throw e;
   }
 
-  // Change Python's working directory to mountPoint so relative `open()` calls work.
-  pyodide.runPython(`import os; os.chdir('${mountPoint}')`);
+  // JSON.stringify produces a JS string literal (double-quoted, backslash-escaped)
+  // that is also valid Python — prevents syntax breakage if mountPoint contains quotes.
+  pyodide.runPython(`import os; os.chdir(${JSON.stringify(mountPoint)})`);
 
   async function syncFromVfs(): Promise<void> {
     const paths = await fs.list();
