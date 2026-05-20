@@ -1,0 +1,14 @@
+-- Optional seed for future SQL exercises; Ch 1 doesn't use this.
+CREATE TABLE invoices (
+  date TEXT,
+  vendor TEXT,
+  category TEXT,
+  amount REAL
+);
+INSERT INTO invoices VALUES
+  ('2026-04-01', '上海某某商贸', '办公', 1234.50),
+  ('2026-04-03', '北京云服务公司', '云服务', 899.00),
+  ('2026-04-08', '某餐厅', '餐饮', 456.80),
+  ('2026-04-15', '某打印店', '办公', 128.40),
+  ('2026-04-22', '某交通', '差旅', 890.00),
+  ('2026-04-28', '某餐厅', '餐饮', 289.60);

@@ -1,0 +1,101 @@
+title: "检查你对第 1 章的理解"
+description: "5 道题 · 大约 3 分钟 · 答错也没关系"
+questions:
+  - id: q1
+    type: single-choice
+    stem: |
+      你问 ChatGPT 三次同样的问题:"我有 50 张发票,帮我算总金额"。
+      它给了你 ¥12,340、¥10,890、¥13,520 三个答案。这反映了什么?
+    options:
+      - id: A
+        text: "ChatGPT 出 bug 了"
+        feedback: "其实不是 bug。ChatGPT 网页版根本没去算 —— 它在猜。"
+      - id: B
+        text: "ChatGPT 没有真的去算,只是在猜"
+        feedback: "完全正确!ChatGPT 在生成文本而不是做算术。"
+        correct: true
+      - id: C
+        text: "我问得不够清楚"
+        feedback: "不是你的问题。再清楚的问法也救不了一个不会真算的工具。"
+      - id: D
+        text: "ChatGPT 服务器繁忙"
+        feedback: "和服务器无关。三次都给不同答案是因为它每次都在'编',不在'算'。"
+
+  - id: q2
+    type: single-choice
+    stem: |
+      在 Claude Code 的工作日志里,你看到这样一行:
+      🔧 Read invoices.csv
+      这一行的本质是什么?
+    options:
+      - id: A
+        text: "AI 在猜文件内容"
+        feedback: "正相反。这一行说明 AI 调用了'读文件'这个工具,真去看了你的文件。"
+      - id: B
+        text: "AI 调用了一个工具去打开你的文件"
+        feedback: "完全正确。这就是 Claude Code 和网页版 ChatGPT 的核心差别。"
+        correct: true
+      - id: C
+        text: "你输入了一行命令"
+        feedback: "不是。这是 AI 自己的动作,不是你的输入。"
+      - id: D
+        text: "这是一个错误提示"
+        feedback: "🔧 表示工具调用,不是错误。"
+
+  - id: q3
+    type: multiple-choice
+    stem: |
+      下面 4 个场景,各自应该用哪种 AI?(选出适合用 Claude Code 的场景,可多选)
+    options:
+      - id: A
+        text: "想知道'权益法'和'成本法'的概念区别"
+        feedback: "这其实更适合 ChatGPT 网页版 —— 不需要打开文件,只是问概念。"
+      - id: B
+        text: "把 invoices/ 目录下 30 张发票整理成 Excel"
+        feedback: "正确。这要打开 30 个文件,Claude Code 是合适的。"
+        correct: true
+      - id: C
+        text: "复算一份你已经做好的报表"
+        feedback: "正确。要打开报表 + 重新算,Claude Code 合适。"
+        correct: true
+      - id: D
+        text: "把一段英文翻译成中文邮件"
+        feedback: "这个用 ChatGPT 网页版更顺手 —— 不需要碰文件。"
+
+  - id: q4
+    type: single-choice
+    stem: |
+      课文里把英文 "harness" 翻译为"装备"。这个比喻里,"装备"具体指什么?
+    options:
+      - id: A
+        text: "AI 模型本身"
+        feedback: "不是。模型是'大脑',装备是另一层东西。"
+      - id: B
+        text: "让 AI 能读文件、跑代码、看结果再反思的那一套'工具+流程'"
+        feedback: "完全正确。装备 = AI 的眼睛、手、反思能力。"
+        correct: true
+      - id: C
+        text: "电脑硬件"
+        feedback: "不是。和硬件无关。"
+      - id: D
+        text: "你的命令行终端"
+        feedback: "终端是装备的一部分,但只是其中一个壳。"
+
+  - id: q5
+    type: single-choice
+    stem: |
+      下面哪个场景里,ChatGPT 网页版反而比 Claude Code 更顺手?
+    options:
+      - id: A
+        text: "整理一个文件夹的发票"
+        feedback: "这是 Claude Code 的强项。"
+      - id: B
+        text: "复算一份报表"
+        feedback: "这也是 Claude Code 的强项。"
+      - id: C
+        text: "随口问'增值税进项'是什么意思"
+        feedback: "正确!不需要打开文件、不需要算,网页版更轻便。"
+        correct: true
+      - id: D
+        text: "对账 100 笔银行流水"
+        feedback: "这是 Claude Code 的强项。"
