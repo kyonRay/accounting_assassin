@@ -192,11 +192,17 @@ src-tauri/target/
 *.bak
 ```
 
-- [ ] **Step 3: Add devDependencies**
+- [ ] **Step 3: Add devDependencies + runtime deps**
 
 ```bash
-pnpm add -D typescript@5 vite@5 @vitejs/plugin-react react@18 react-dom@18 @types/react @types/react-dom vitest @testing-library/react @testing-library/jest-dom jsdom @mdx-js/react @mdx-js/rollup @types/mdx tailwindcss@3 postcss autoprefixer eslint prettier zustand @tanstack/react-router xterm xterm-addon-fit
+# devDeps
+pnpm add -D typescript@5 vite@5 @vitejs/plugin-react react@18 react-dom@18 @types/react @types/react-dom vitest @testing-library/react @testing-library/jest-dom jsdom @mdx-js/react @mdx-js/rollup @types/mdx tailwindcss@3 postcss autoprefixer eslint prettier zustand @tanstack/react-router xterm xterm-addon-fit @rollup/plugin-yaml yaml
+
+# runtime deps (needed by Tauri Storage adapter in Task 3.3 and Quiz YAML loader in Task 3.1)
+pnpm add @tauri-apps/api @tauri-apps/plugin-fs
 ```
+
+> **Codex review fix #4**:`@rollup/plugin-yaml` 给 Quiz YAML 静态导入用,`yaml` 给 chapter test 解析 quiz.yaml 用,`@tauri-apps/plugin-fs` 给 Task 3.3 的 Progress 持久化 Tauri 存储适配器用 —— 三个都要在 Week 1 就装,避免后面卡住。
 
 - [ ] **Step 4: tsconfig.json**
 
@@ -254,12 +260,21 @@ import react from "@vitejs/plugin-react";
 import mdx from "@mdx-js/rollup";
 import path from "path";
 
+import yaml from "@rollup/plugin-yaml";
+
 export default defineConfig({
-  plugins: [mdx({ providerImportSource: "@mdx-js/react" }), react()],
+  plugins: [mdx({ providerImportSource: "@mdx-js/react" }), react(), yaml()],
   test: {
     environment: "jsdom",
     globals: true,
     setupFiles: ["./tests/setup.ts"],
+    // Codex review fix #1: Vitest 默认只匹配 *.{test,spec}.ts;
+    // 我们的 chapter test 用 content/chapters/NN-slug/test.ts 命名,
+    // 必须显式加进来,否则 pnpm test:chapters 静默跑不出任何用例
+    include: [
+      "**/*.{test,spec}.{ts,tsx}",
+      "content/chapters/**/test.ts",
+    ],
   },
   resolve: {
     alias: {
@@ -269,6 +284,8 @@ export default defineConfig({
   },
 });
 ```
+
+> **Codex review fix #1**:Vitest 默认 include 是 `**/*.{test,spec}.{ts,tsx}`,**`content/chapters/NN-slug/test.ts` 这种文件名不会被自动识别**。设计 spec § 3.2 承诺过 `test.ts` 命名约定,因此修配置而不是改命名。`@rollup/plugin-yaml` 也加进来,让 Vitest 能解析章节的 quiz.yaml。
 
 - [ ] **Step 7: Init Tailwind**
 
@@ -544,6 +561,13 @@ import type { ComponentType } from "react";
 
 type LessonModule = { default: ComponentType };
 
+// Codex review fix #2:Vite 的动态 import() 无法稳定解析 alias + 模板字符串。
+// 用 import.meta.glob 在构建期生成静态可分析的 chapter manifest,所有 lesson.mdx
+// 文件都会被 Vite 发现并 bundle。
+const chapterLoaders = import.meta.glob<LessonModule>(
+  "/content/chapters/*/lesson.mdx",
+);
+
 export function useChapter(slug: string) {
   const [Lesson, setLesson] = useState<ComponentType | null>(null);
   const [error, setError] = useState<Error | null>(null);
@@ -553,8 +577,15 @@ export function useChapter(slug: string) {
     setLesson(null);
     setError(null);
 
-    import(`@content/chapters/${slug}/lesson.mdx`)
-      .then((mod: LessonModule) => {
+    const key = `/content/chapters/${slug}/lesson.mdx`;
+    const loader = chapterLoaders[key];
+    if (!loader) {
+      setError(new Error(`Chapter not found: ${slug}`));
+      return;
+    }
+
+    loader()
+      .then((mod) => {
         if (!cancelled) setLesson(() => mod.default);
       })
       .catch((err: Error) => {
@@ -567,6 +598,8 @@ export function useChapter(slug: string) {
   return { Lesson, error };
 }
 ```
+
+> **Codex review fix #2**:`import.meta.glob` 是 Vite 官方推荐的"按模式批量动态加载"方式,构建期就能枚举到所有匹配文件,**没有路径别名 + 模板字符串带来的静态分析问题**。所有 15 章的 lesson.mdx 会自动进 bundle。
 
 - [ ] **Step 4: LessonViewer component**
 
@@ -936,16 +969,127 @@ For each:
 
 > **Vibe-coding hint**: For each chapter ask Claude Code: "请按 `content/chapters/01-ai-tools-vs-chatgpt/` 结构,实现 `02-show-files-to-ai/`,让 test.ts 通过。先写 test.ts,我 review 后再实现其它。"
 
-## Task 3.3: Progress store + first-launch flow
+## Task 3.3: Progress store + Tauri storage adapter + first-launch flow
 
-**Files:** `src/modules/Progress/store.ts`, `persistence.ts`, `src/components/WelcomeFlow.tsx`
+**Files:** `src/modules/Progress/store.ts`, `src/modules/Progress/persistence.ts`, `src/components/WelcomeFlow.tsx`
 
-- [ ] Implement Zustand store with persist middleware (chapters / currentChapter / mode / hasCompletedOnboarding / hasViewedSidebar flags)
-- [ ] Backup mechanism: write `.bak` alongside main JSON on each markCompleted
-- [ ] Implement WelcomeFlow component: T+0 splash → T+3 welcome → T+30 preparing → done
-- [ ] Sandbox-only prep wording per § 10.4 (no mention of `~/accounting-learner/`)
-- [ ] Gate App.tsx on `hasCompletedOnboarding`
-- [ ] Commit: `feat(onboarding): T+0/+3/+30/+60 welcome flow + Zustand progress`
+- [ ] **Step 1: Implement Tauri storage adapter(critical — Codex review fix #3)**
+
+`src/modules/Progress/persistence.ts`:
+
+```typescript
+import {
+  readTextFile,
+  writeTextFile,
+  exists,
+  remove,
+  BaseDirectory,
+  mkdir,
+} from "@tauri-apps/plugin-fs";
+import { createJSONStorage, type StateStorage } from "zustand/middleware";
+
+// 写到 macOS 标准位置:~/Library/Application Support/AccountingAssassin/
+// 这是 spec § 2.5.1 定义的"App 私有状态"边界 —— 不能默认走 localStorage!
+const APP_DATA_DIR = { baseDir: BaseDirectory.AppLocalData } as const;
+
+async function ensureDir() {
+  // Tauri 自动创建 AppLocalData 根目录,无需手动创建
+}
+
+const tauriStorage: StateStorage = {
+  async getItem(name) {
+    try {
+      const file = `${name}.json`;
+      if (await exists(file, APP_DATA_DIR)) {
+        return await readTextFile(file, APP_DATA_DIR);
+      }
+      // 主文件不存在时尝试 .bak(spec § 8.2 备份恢复)
+      const bak = `${name}.json.bak`;
+      if (await exists(bak, APP_DATA_DIR)) {
+        return await readTextFile(bak, APP_DATA_DIR);
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  },
+  async setItem(name, value) {
+    await ensureDir();
+    // 先写主文件
+    await writeTextFile(`${name}.json`, value, APP_DATA_DIR);
+    // 再顺手写一份 .bak,作为下次启动恢复时的兜底
+    await writeTextFile(`${name}.json.bak`, value, APP_DATA_DIR);
+  },
+  async removeItem(name) {
+    try {
+      await remove(`${name}.json`, APP_DATA_DIR);
+      await remove(`${name}.json.bak`, APP_DATA_DIR);
+    } catch { /* ignore */ }
+  },
+};
+
+// 在 Vitest(jsdom)环境里没有 Tauri IPC,降级到 localStorage 保持单测可跑
+const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+export const progressStorage = isTauri
+  ? createJSONStorage(() => tauriStorage)
+  : createJSONStorage(() => localStorage);
+```
+
+- [ ] **Step 2: 给 Tauri 加权限**
+
+修改 `src-tauri/capabilities/default.json`(或新建 capability)加上:
+
+```json
+{
+  "identifier": "progress-storage",
+  "permissions": [
+    "fs:allow-app-read-recursive",
+    "fs:allow-app-write-recursive"
+  ]
+}
+```
+
+这是 Tauri 2 唯一允许 plugin-fs 写 AppLocalData 的方式。
+
+- [ ] **Step 3: Implement Zustand store using the adapter**
+
+`src/modules/Progress/store.ts`:
+
+```typescript
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import { progressStorage } from "./persistence";
+
+// ...(ProgressState interface 与 plan 原文一致)
+
+export const useProgress = create<ProgressState>()(
+  persist(
+    (set) => ({
+      // ...(原本的 state + actions)
+    }),
+    {
+      name: "accounting-assassin-progress",
+      storage: progressStorage,    // ← 关键:走 Tauri,不走默认 localStorage
+    },
+  ),
+);
+```
+
+- [ ] **Step 4: Implement WelcomeFlow component**: T+0 splash → T+3 welcome → T+30 preparing → done
+- [ ] **Step 5: Sandbox-only prep wording** per § 10.4 (no mention of `~/accounting-learner/`)
+- [ ] **Step 6: Gate App.tsx on `hasCompletedOnboarding`**
+- [ ] **Step 7: Unit test for persistence**:写测试覆盖"主文件损坏时从 .bak 恢复"
+- [ ] **Step 8: Manual verify**:跑一次 `pnpm tauri:dev`,完成 Ch 1,杀进程,重启 → 应该回到 Ch 1 已完成状态;然后`open ~/Library/Application\ Support/com.kyong.accounting-assassin/` 看到 `accounting-assassin-progress.json` 和 `.bak`
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add src/modules/Progress/ src/components/WelcomeFlow.tsx src-tauri/capabilities/
+git commit -m "feat(progress): Zustand store with Tauri AppLocalData storage adapter + .bak backup"
+```
+
+> **Codex review fix #3**:Zustand `persist` 默认走 localStorage(WebView 沙箱内,**不是 macOS 文件系统**)。这会让 spec § 2.5.1 的"App 私有状态在 ~/Library/Application Support/AccountingAssassin/"边界承诺成空话。必须手写 Tauri storage adapter,直接走 `@tauri-apps/plugin-fs` 的 AppLocalData,才能真正达成 spec 的存储位置承诺。Vitest 环境降级 localStorage 是为了让单测在 jsdom 里能跑。
 
 ## Task 3.4: Sidebar + curriculum manifest
 
@@ -1180,18 +1324,49 @@ Each chapter's first `<RealStep>` includes external-tool health check + graceful
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-NN="$1"
-DIR=$(ls -d content/chapters/${NN}-*/ | head -1)
+
+NN="${1:?usage: review-chapter.sh <NN> (e.g. 03)}"
+DIR=$(ls -d content/chapters/${NN}-*/ 2>/dev/null | head -1)
+if [ -z "$DIR" ]; then
+  echo "ERROR: no chapter directory matches content/chapters/${NN}-*" >&2
+  exit 1
+fi
+
 mdx="${DIR}lesson.mdx"
+checker="${DIR}checker.ts"
+quiz="${DIR}quiz.yaml"
 
-# Codex review
-codex review "$mdx" > "${DIR}lesson.review.codex.md"
+# Codex review fix #5a:不能只把文件路径丢给 codex,必须把 review 任务 + 章节
+# 完整内容一起喂给它,否则 codex 收到的只是一个字符串 "content/chapters/...
+# lesson.mdx",输出会是空的或胡说八道
+codex --print - <<EOF > "${DIR}lesson.review.codex.md"
+你是一名教学产品 review 专家。下面是一份"教零基础财务会计师(10 年经验,无编程基础)用 AI 工具"的章节。请从以下 5 个维度做 review,每条只写最重要的问题,不超过 3 行:
 
-# Gemini review (or another AI)
-# gemini review "$mdx" > "${DIR}lesson.review.gemini.md"
+1. 概念准确性:有没有错误陈述、过时事实
+2. 教学顺序:前置概念是否在前面章节充分铺垫
+3. 真实场景的合理性:会计场景的数据/任务是否真实
+4. 失败兜底:出错或卡住时的引导是否清晰
+5. 遗漏的边角情况
+
+# Lesson MDX
+$(cat "$mdx")
+
+# Checker
+$(cat "$checker" 2>/dev/null || echo "(no checker.ts)")
+
+# Quiz
+$(cat "$quiz" 2>/dev/null || echo "(no quiz.yaml)")
+EOF
+
+# (可选)Gemini / Claude / 其它 AI 同样模式
+# gemini --print - <<EOF > "${DIR}lesson.review.gemini.md"
+# ... 同样的 review prompt ...
+# EOF
 
 echo "Reviews written to ${DIR}lesson.review.*.md"
 ```
+
+> **Codex review fix #5a**:原版 `codex review "$mdx"` 只把路径当 prompt 传给 codex,**codex 收到的是字符串字面量,不是文件内容**。修法:用 heredoc 把 review 指令 + 完整章节内容(mdx + checker + quiz)一起喂给 codex 的 `--print` 模式,确保 review 真正基于内容产出。
 
 - [ ] Implement script with structured review prompt
 - [ ] Run for all 15 chapters
@@ -1232,16 +1407,34 @@ echo "Reviews written to ${DIR}lesson.review.*.md"
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
+
 pnpm tauri:build
+
 APP="src-tauri/target/release/bundle/macos/AccountingAssassin.app"
+if [ ! -d "$APP" ]; then
+  echo "ERROR: built .app not found at $APP" >&2
+  exit 1
+fi
+
+# ad-hoc 签名(spec § 10.2 决定不申请 ADP)
 codesign --force --deep --sign - "$APP"
-DMG="src-tauri/target/release/bundle/dmg/AccountingAssassin_*.dmg"
-# attach onboarding PDF + copy to release artifacts/
+
+# Codex review fix #5b:DMG 路径含通配符,不能存进变量后直接 cp "$DMG"
+# (bash 不展开引号内通配)。用 find 显式解析出真实路径。
+DMG=$(find src-tauri/target/release/bundle/dmg -name "AccountingAssassin_*.dmg" -type f | head -1)
+if [ -z "$DMG" ]; then
+  echo "ERROR: no DMG produced by tauri:build" >&2
+  exit 1
+fi
+
 mkdir -p release/
 cp "$DMG" release/
 cp docs/首次安装说明.pdf release/
-echo "Release artifacts in release/"
+echo "Release artifacts:"
+ls -lh release/
 ```
+
+> **Codex review fix #5b**:原版 `DMG="...AccountingAssassin_*.dmg"` 加引号 `cp "$DMG"` 时,bash 把通配符当字面量,**cp 会找不到名字真就是 `*.dmg` 的文件**。改用 `find` 显式找出真实路径 + 显式失败分支(找不到时 `exit 1`,不静默)。
 
 - [ ] Implement
 - [ ] Test on dev machine
@@ -1273,7 +1466,7 @@ Single-page PDF (rendered from markdown):
 
 ## Week 9 Acceptance
 
-- [ ] Signed .dmg < 50 MB
+- [ ] Signed .dmg **< 30 MB**(对齐 spec § 10.1 的 bundle 体积承诺;若超过,需先排查是 Pyodide 包体过大、还是 aa-ocr 二进制未 strip,再决定是否调整 spec)
 - [ ] Right-click-open verified on clean account
 - [ ] Wife successfully opens the app and reaches Ch 1
 - [ ] Project marked v1.0.0 in git
