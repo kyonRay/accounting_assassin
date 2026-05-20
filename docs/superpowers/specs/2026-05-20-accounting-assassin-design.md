@@ -54,9 +54,35 @@ App 本身使用 **Tauri + React + TypeScript** 实现,以 macOS 原生 `.app` �
 
 - App 必须是 **macOS 原生体验**(双击即开、菜单栏、深色模式适配等)
 - 不接真实 LLM API(沙箱阶段使用脚本化"假 AI",见 § 4.2)
-- 真实环境操作严格限制在 `~/accounting-learner/` 目录内(安全边界)
-- App 永不崩溃(顶层 ErrorBoundary + Tauri panic handler)
-- 错误信息**永远不展示英文堆栈或错误码**
+- **三层文件系统边界严格分离**(见 § 2.5.1)
+- App 进程级隔离崩溃:崩溃时自动保存进度,重启后回到此处(详见 § 8.5)
+- App 自己产生的错误一律翻译为中文 + 下一步建议;外部工具(claude / brew / codex 等)的原始英文报错允许保留显示,但必须配中文解读
+
+#### 2.5.1 三层文件系统边界
+
+| 边界 | 范围 | 写入方 | 用户认知 |
+|---|---|---|---|
+| **用户工作区** | `~/accounting-learner/` | App 通过 Tauri RealEnvBridge 写入(路径白名单)| "我的作业本" |
+| **App 私有状态** | `~/Library/Application Support/AccountingAssassin/` | Tauri 默认存储(progress.json / feedback.json / crash 日志等),用户不应手动改 | macOS 标准约定,她不需要看到 |
+| **系统级安装** | `/opt/homebrew/`、`~/.claude/`、`~/.cursor/`、`~/.codex/`、PATH 等 | **由用户在自己终端跑命令产生**,App **不主动写** | 装一次后她不需要再碰 |
+
+**关键原则**:App 自己**不去执行** `brew install` —— 而是**展示命令、引导她在自己终端按回车**。这同时实现了三件事:(a) App 永远不需要 sudo;(b) 教学价值(她在学"我装了什么、装到哪了");(c) 如果安装失败,失败现场在她自己终端里,我们的"卡住按钮"诊断能直接拿到原始 brew 日志。
+
+### 2.6 外部依赖与降级策略
+
+课程从 Ch 5 起强依赖外部工具,这些工具有账户、订阅、网络等真实成本。设计上必须显式承认依赖并提供降级路径。
+
+| 工具 | 账户 / 订阅 | 网络要求 | 章节依赖 | 不可用时降级 |
+|---|---|---|---|---|
+| Claude Code | Anthropic 账户 + 订阅(Claude Pro $20/月 或 Claude Max $100/月)| 持续可达 api.anthropic.com | Ch 5-15 主线 | App 自检后引导"检查订阅 / 重新登录 / 切网络";阻塞时保留沙箱章节复习模式 |
+| Codex CLI | OpenAI 账户 + 订阅(ChatGPT Plus / Pro)| 持续可达 openai.com | Ch 11-12 | Codex 不可用时,Ch 11-12 临时用 Claude Code 演示同任务,概念照常讲;她事后再补 Codex 部分 |
+| Cursor | Cursor 账户 + 订阅(Pro $20/月)| 持续可达 cursor.com | Ch 13 | Cursor 不可用时,Ch 13 降级为"看预录演示 + 概念讲解"模式 |
+
+**额外原则**:
+- 每个工具在第一次出现的章节里,App **自动跑健康检查**(`xxx --version`、登录态自检命令、网络可达)并显示结果
+- App **不存储**任何外部工具的 API key / 登录凭证 —— 全部由用户在自己机器上完成认证
+- "卡住"按钮诊断报告包含每个外部工具的版本和最近一次健康检查结果(**不含**凭证)
+- 课程开始前的 Ch 0(可选导览章)或 Ch 5 开篇会**显式列出所有付费工具的费用**,让用户提前知情
 
 ---
 
@@ -201,6 +227,40 @@ App 本身使用 **Tauri + React + TypeScript** 实现,以 macOS 原生 `.app` �
 - Quiz **不阻断**解锁(答错也能进下一章)
 - 开发者菜单(仅 dev build 可见)允许跳转任意章节
 
+### 5.3 毕业项目的关键技术路线
+
+毕业作品 A 的三个小工具(发票 OCR、流水分类、报表汇总)涉及真实底层技术选型。对零基础用户而言,**底层依赖的选择直接决定她能不能跑得起来**,必须在设计阶段就收敛,不留到 Ch 14 现场决策。
+
+#### 5.3.1 发票 OCR(最复杂,必须明确)
+
+**主线方案:macOS 原生 Apple Vision + pdfplumber 双轨,人机协作降级**
+
+| 输入类型 | 处理路径 | 中文识别 | 失败兜底 |
+|---|---|---|---|
+| 真 PDF(有文字层)| `pdfplumber` 提取文字 | 完美(无 OCR 损失)| 切到下条 |
+| 扫描件 PDF / 手机拍照 JPG/PNG | macOS Vision Framework(`VNRecognizeTextRequest`,中文模式)| 印刷体良好,手写较差 | 关键字段(金额 / 日期 / 抬头)失败时,提示她**手填 + AI 复核**,而不是一直转圈 |
+
+**为什么选 Vision + pdfplumber**:
+- **零依赖**:Vision 是 macOS 系统内置,不要 `brew install tesseract`、不联网、不要 API Key
+- **零成本**:相比腾讯/阿里/百度云 OCR,无费用
+- **教学价值**:她会学到一条重要规律 —— "AI 不是万能,该回到人 + 工具协作时就回到"
+- **失败优雅**:OCR 失败时不让她不知所措,而是降级为"她填一两个关键字段 + AI 校验"的人机模式
+
+**实现路径**:Tauri Rust 侧通过 `objc2` crate 调用 Apple Vision Framework,或者更轻量地通过 `shortcuts run` 调起一个 macOS Shortcut。Ch 7 引导她**让 Claude Code 写**这段 Rust + Python 胶水代码 —— 完成"用 AI 教会计师用 AI 写 AI 工具"的元教学闭环。
+
+**淘汰方案**(记录以备后查):
+- **Tesseract**:中文 traineddata 装起来繁琐,识别率不显著好于 Vision,放弃
+- **云 OCR**(腾讯/阿里/百度):引入账号 / 计费 / 网络依赖,对零基础门槛过高,放弃
+- **Claude / GPT 视觉 API**:费用高、稳定性差、且属于章节强依赖,放弃
+
+#### 5.3.2 流水分类 & 报表汇总
+
+主线:**Python + Claude Code 写脚本**,数据格式默认 CSV / XLSX(`pandas` + `openpyxl`)。无额外底层依赖。
+
+数据来源:
+- 银行流水:她从网银导出的 CSV / XLSX(假设网银能导)
+- 报表:她现有 Excel 模板,脚本读 + 改
+
 ---
 
 ## 6. 数据流(Data Flow)
@@ -325,9 +385,11 @@ questions:
 
 ### 8.1 三条贯穿原则
 
-1. **永远不展示英文堆栈或错误码** —— 翻译为会计师能理解的语言
+1. **App 自己产生的错误一律翻译为中文 + 下一步建议** —— 外部工具(claude / brew / codex)的原始报错可以保留英文展示,但必须配一段中文解读,让她知道大致发生了什么、该做什么
 2. **每个错误附带"接下来你可以做什么"** —— 不让她对错误屏发呆
 3. **"我卡住了"按钮全 App 永驻** —— 沙箱模式淡灰色,真实模式醒目橙色
+
+> **说明**:我们不承诺"她**永远**不会看到英文报错"。当她在自己终端跑 `brew install` 失败时,会看到 brew 的原始英文输出 —— 这是教学的一部分,她未来要学会读这些。App 能做的、也必须做的,是在那段英文旁边给她中文解读和下一步建议。
 
 ### 8.2 错误分类
 
@@ -382,12 +444,19 @@ questions:
 
 "看答案"是温柔可选项,不是强制 —— 给学习者最终的安全感。
 
-### 8.5 App 永不崩溃的兜底
+### 8.5 崩溃隔离与可恢复性
 
-- React 顶层 ErrorBoundary
-- Tauri Rust panic_handler 转 JS 友好错误
-- 所有 IPC 调用包 try/catch
-- 任何状态变更都先写本地存储再更新 UI
+我们**不承诺"永不崩溃"** —— Tauri WebView、外部 CLI、macOS 系统弹窗都可能引发不可控失败。设计目标是 **崩溃可隔离、状态可恢复、问题可上报**:
+
+- React 顶层 ErrorBoundary 兜住 UI 异常,降级显示"出问题了,要重启吗?"对话框
+- Tauri Rust 侧 `panic::set_hook` 把所有 panic 转为 JS 友好错误,不让进程整体退出
+- 所有 IPC 调用包 try/catch,失败降级为"该操作暂时不可用,要重试吗?"
+- 任何状态变更**先写本地存储再更新 UI**,崩溃后重启能回到此处
+- 不可恢复的崩溃自动落 crash 日志到 `~/Library/Application Support/AccountingAssassin/crashes/YYYY-MM-DD-HHmmss.log`;"卡住按钮"诊断报告会自动附上最近一次崩溃日志(脱敏后)
+
+**验收标准**(用来代替原"永不崩溃"的不可验收措辞):
+- 在 dev build 里人为触发 IPC 失败 / Rust panic / WebView crash 三种场景,UI 都必须能恢复或重启
+- 真实环境 Ch 5-15 手测时,至少一次故意"装错环境"看 App 反应,要求降级到"卡住按钮"流程而非白屏
 
 ---
 
@@ -485,14 +554,33 @@ jobs:
 - 在 .dmg 里附带 `首次安装说明.pdf`,图文步骤:① 拖到 Applications ② 在 Applications 里**右键** App 图标 → 点"打开" → 弹窗里点"打开"
 - App 内 Settings 页面也保留"如何重新启用未识别 App"的链接(防 macOS 重置安全设置后她不知道怎么办)
 
+**首次启动失败分支**(必须在 .dmg 安装说明 PDF 里写清):
+
+| 场景 | 处理 |
+|---|---|
+| 右键打开仍被拦截(Apple Silicon + macOS 14+ 偶发)| 图文引导:**系统设置 → 隐私与安全性 → 滑到底部"App 已被阻止" → 点"仍要打开"** |
+| `xattr` 隔离属性顽固(从 iCloud 下载常见)| 提供一句话命令(她复制粘贴):`xattr -dr com.apple.quarantine /Applications/AccountingAssassin.app` —— 配套图文截图 |
+| 系统更新后再次被拦 | App 内 Settings 页保留"重新启用本 App"的图文链接 |
+| 以上全部失败 | 引导她**找老公**(短信发"App 打不开" + 截屏),你远程帮她跑命令 |
+
 **未来如果想分享给同事/朋友**:那时再决定要不要买 ADP,不影响当前 MVP。
 
-### 10.3 分发
+### 10.3 分发与更新
 
 - 不上 App Store
 - `.dmg` 通过 iCloud Drive / AirDrop 给她
 - 自动更新:Tauri Updater plugin + 私有 GitHub Release
 - 更新策略:启动时静默检查,有新版本时弹"我升级一下?",绝不强制
+
+**更新与运行时失败分支**:
+
+| 场景 | 处理 |
+|---|---|
+| 自动更新下载失败(网络/GitHub Release 访问异常)| App 内"设置 → 检查更新"页显示失败原因 + [打开 GitHub Release 页面] 按钮,引导她**手动下载新 .dmg** |
+| 自动更新静默失败(更常见,她可能不知道)| "卡住按钮"诊断报告包含最近一次更新尝试的时间、版本、结果,你可远程帮她定位 |
+| App 被移走或重命名(她整理 Applications 误操作)| 启动时自检 App bundle 位置;不在 `/Applications/AccountingAssassin.app` 时弹"App 应该在 /Applications/,请把我拖回去"对话框 + 拖动示意图 |
+| macOS 大版本升级后启动异常 | App 自检 macOS 主版本号,跨大版本(如 14 → 15)时主动提示"系统刚升级,可能需要再做一次'右键打开'授权"+ 引导链接 |
+| Tauri Updater 完全无响应(罕见但严重)| 设置页提供"手动下载最新版本"按钮,跳转 GitHub Release 页面,降级为传统手动升级 |
 
 ### 10.4 第一次启动的 60 秒(关键设计)
 
@@ -567,6 +655,11 @@ jobs:
 | 测试 E2E 自动化 | 仅沙箱章节(选做),真实环境章节人工 | brew install 等命令不适合自动化 |
 | 多 AI Review 流水线 | 内置 `scripts/review-chapter.sh` | 用户已规划 + 教学示范价值 |
 | 交付策略 | 等 15 章全部完成再一次性交付 | 一次性 wow moment 优于阶段性试用 |
+| **文件系统边界** | 三层(用户工作区 / App 私有状态 / 系统级安装)清晰分离 | Codex review 指出原"严格限于 ~/accounting-learner/"自相矛盾(后续 § 2.5.1) |
+| **外部工具依赖** | 显式声明账户/订阅/网络要求 + 降级路径 | Codex review 指出隐藏依赖会爆雷(§ 2.6) |
+| **发票 OCR 主线** | macOS Apple Vision + pdfplumber + 人机降级 | 零依赖、零费用、教学友好(§ 5.3.1) |
+| **错误处理承诺** | 改为可验收措辞("隔离 + 翻译 + 兜底",不承诺"永不崩溃")| Codex review 指出绝对承诺不可验收(§ 8.1 / § 8.5) |
+| **安装/更新失败分支** | 在 § 10.2 / 10.3 显式列出兜底路径(右键失败 / xattr / 系统升级 / App 位置异常 / 更新失败)| Codex review 指出原分发链路太脆 |
 | commit 规范 | 不带 Co-Authored-By 等 AI trailer | 用户全局偏好 |
 
 ---
