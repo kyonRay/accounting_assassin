@@ -72,11 +72,13 @@ App 本身使用 **Tauri + React + TypeScript** 实现,以 macOS 原生 `.app` �
 
 课程从 Ch 5 起强依赖外部工具,这些工具有账户、订阅、网络等真实成本。设计上必须显式承认依赖并提供降级路径。
 
-| 工具 | 账户 / 订阅 | 网络要求 | 章节依赖 | 不可用时降级 |
-|---|---|---|---|---|
-| Claude Code | Anthropic 账户 + 订阅(Claude Pro $20/月 或 Claude Max $100/月)| 持续可达 api.anthropic.com | Ch 5-15 主线 | App 自检后引导"检查订阅 / 重新登录 / 切网络";阻塞时保留沙箱章节复习模式 |
-| Codex CLI | OpenAI 账户 + 订阅(ChatGPT Plus / Pro)| 持续可达 openai.com | Ch 11-12 | Codex 不可用时,Ch 11-12 临时用 Claude Code 演示同任务,概念照常讲;她事后再补 Codex 部分 |
-| Cursor | Cursor 账户 + 订阅(Pro $20/月)| 持续可达 cursor.com | Ch 13 | Cursor 不可用时,Ch 13 降级为"看预录演示 + 概念讲解"模式 |
+> **价格信息时效性**:下表所有价格、档位、官方页面**截至 2026-05-20**。订阅产品定价变动较快,**正式发版前(§ 11 第 9 周交付周)必须重新核对一次**,并把过期信息更新到 .dmg 附带的 PDF 说明里。
+
+| 工具 | 账户 / 订阅(2026-05-20)| 官方链接 | 网络要求 | 章节依赖 | 不可用时降级 |
+|---|---|---|---|---|---|
+| Claude Code | Anthropic 账户 + 订阅:Claude Pro $20/月,或 Claude Max $100/月 / $200/月 两档 | [anthropic.com/pricing](https://www.anthropic.com/pricing) · [claude-code](https://www.anthropic.com/claude-code) | 持续可达 api.anthropic.com | Ch 5-15 主线 | App 自检后引导"检查订阅 / 重新登录 / 切网络";阻塞时保留沙箱章节复习模式 |
+| Codex CLI | OpenAI 账户 + 订阅:ChatGPT Plus / Pro / Business / Enterprise / Edu 任一即可 | [openai.com/codex](https://openai.com/codex) | 持续可达 openai.com | Ch 11-12 | Codex 不可用时,Ch 11-12 临时用 Claude Code 演示同任务,概念照常讲;她事后再补 Codex 部分 |
+| Cursor | Cursor 账户 + 订阅:Pro $20/月,Pro+ / Ultra 更高档(按用量需要选档)| [cursor.com/pricing](https://cursor.com/pricing) | 持续可达 cursor.com | Ch 13 | Cursor 不可用时,Ch 13 降级为"看预录演示 + 概念讲解"模式 |
 
 **额外原则**:
 - 每个工具在第一次出现的章节里,App **自动跑健康检查**(`xxx --version`、登录态自检命令、网络可达)并显示结果
@@ -94,7 +96,9 @@ App 本身使用 **Tauri + React + TypeScript** 实现,以 macOS 原生 `.app` �
 ┌─────────────────────────────────────────────────────────────┐
 │  Tauri Shell(Rust)                                          │
 │  • 启动窗口 / 菜单栏 / 系统通知                              │
-│  • 暴露给 JS 的命令(execute_real_command / check_install)  │
+│  • 暴露给 JS 的命令:仅固定白名单(check_command_exists /    │
+│    read_user_file / run_bundled_checker / open_terminal_at  │
+│    等),**不暴露任意 shell 接口**(详见 § 4.3)             │
 │  • 文件系统访问授权(白名单 ~/accounting-learner/)         │
 └─────────────────────────────────────────────────────────────┘
                             ▲
@@ -177,7 +181,23 @@ App 本身使用 **Tauri + React + TypeScript** 实现,以 macOS 原生 `.app` �
 
 到 **Ch 5** 起,用户在真实环境与**真正的** Claude Code 对话,完成"沙箱毕业"仪式。
 
-### 4.3 模块详细职责与接口
+### 4.3 RealEnvBridge 的子进程安全边界(关键)
+
+**问题**:Tauri 的路径白名单只管 **Tauri 自己的文件 API**,**不管子进程**。一旦 App 启动 `python script.py` 或 `claude` 子进程,这些子进程拥有用户级完整文件系统权限,可以读写到 `~/Documents/`、`~/Desktop/` 任何位置。所以"`~/accounting-learner/` 是安全边界"这个声明只有**架构和工作流上一致地维持**,才是真正成立的。
+
+**实现原则**:
+
+| 原则 | 落地 |
+|---|---|
+| **没有"任意 shell 命令"接口** | RealEnvBridge 只暴露**固定签名的白名单 Tauri 命令**:`check_command_exists(cmd: enum)` / `read_user_file(rel_path: PathBuf)` / `run_bundled_checker(name: enum)` / `open_terminal_at(rel_path: PathBuf)` / `open_in_editor(rel_path: PathBuf)`。没有 `execute_real_command(cmd: String)` 这种通配接口 |
+| **App 不执行用户写的代码** | 用户在 Ch 7+ 写的脚本(发票 OCR、流水分类等),由**用户在自己的终端**执行;App 帮她打开终端到正确目录 + 把命令复制到剪贴板,但不替她跑 |
+| **Checker 优先文件读取验证,不执行任意代码** | 校验"练习产物"靠**读文件并解析**(如检查 `summary.xlsx` 是否包含 3 个类目),不靠跑她的脚本。极个别必须运行的检查由 App bundle 内的预置脚本完成(由我们维护、参数受限),而不是接受用户路径动态加载 |
+| **路径全部规范化 + prefix 校验** | 所有用户传入的相对路径在 Rust 侧 `canonicalize` 后,校验是否仍在 `~/accounting-learner/` 内;符号链接、`../` 越界等攻击向量在静态校验时拒绝 |
+| **明确划清"App 边界"vs"她的本机"** | 文档和 UI 都讲清:`~/accounting-learner/` 是 **App 帮她维护**的目录;她在自己终端跑的命令则在**她整个 macOS 的权限范围内**,这件事 App 无法限制,也不应假装能限制 |
+
+**为什么这样取舍**:真正的进程级沙箱(seccomp / macOS Sandbox `.entitlements`)对零基础用户太重(签名复杂、调试困难),且我们不签 ADP 也走不了 App Sandbox。所以我们选择**通过架构约束实现"够用的"边界**,而不是技术沙箱。这要求文档、UI、checker 设计**保持一致的契约**,任何对此契约的破坏都视为高优先级安全 bug。
+
+### 4.4 模块详细职责与接口
 
 详见各模块下属规格(实施阶段由 writing-plans 拆解为子规格)。
 
@@ -198,7 +218,7 @@ App 本身使用 **Tauri + React + TypeScript** 实现,以 macOS 原生 `.app` �
 | 05 | 你的"工作室":Mac 终端、Homebrew、Python | 真实 | — | 装环境 |
 | 06 | 第一次与真实的 Claude Code 对话 | 真实 | 🎯 | 第一次 claude 命令 |
 | **Part III · 把 Claude Code 用熟** | | | | |
-| 07 | 在自己的项目里工作:CLAUDE.md / --continue / 文件管理 | 真实 | — | 写发票 OCR 脚本 |
+| 07 | 在自己的项目里工作:CLAUDE.md / --continue / 文件管理 | 真实 | — | 用 Python 调 App 预置的 `aa-ocr` CLI 处理一张发票(详见 § 5.3.1)|
 | 08 | **Bug 来了怎么办:Debug + 撤销** | 真实 | — | 读 traceback / 向 AI 提 bug / git reset 作为实验安全网(详见 § 5.4)|
 | 09 | Skills:把重复工作变成"一句话搞定" | 真实 | — | 写"整理本月发票"Skill |
 | 10 | Hooks 与 MCP:自动化 + 给 AI 长出手脚 | 真实 | 🎯 | SQLite MCP + 自动校验 Hook |
@@ -231,27 +251,63 @@ App 本身使用 **Tauri + React + TypeScript** 实现,以 macOS 原生 `.app` �
 
 毕业作品 A 的三个小工具(发票 OCR、流水分类、报表汇总)涉及真实底层技术选型。对零基础用户而言,**底层依赖的选择直接决定她能不能跑得起来**,必须在设计阶段就收敛,不留到 Ch 14 现场决策。
 
-#### 5.3.1 发票 OCR(最复杂,必须明确)
+#### 5.3.1 发票 OCR(用 App 预置 CLI,把复杂度藏起来)
 
-**主线方案:macOS 原生 Apple Vision + pdfplumber 双轨,人机协作降级**
+**主线方案:App 随包分发一个 `aa-ocr` CLI(我们写好的 Rust 二进制),她只学"用 Python 调命令行工具 + 解析 JSON"**
 
-| 输入类型 | 处理路径 | 中文识别 | 失败兜底 |
-|---|---|---|---|
-| 真 PDF(有文字层)| `pdfplumber` 提取文字 | 完美(无 OCR 损失)| 切到下条 |
-| 扫描件 PDF / 手机拍照 JPG/PNG | macOS Vision Framework(`VNRecognizeTextRequest`,中文模式)| 印刷体良好,手写较差 | 关键字段(金额 / 日期 / 抬头)失败时,提示她**手填 + AI 复核**,而不是一直转圈 |
+##### 5.3.1.1 `aa-ocr` 工具规格(我们交付的,不是她写的)
 
-**为什么选 Vision + pdfplumber**:
-- **零依赖**:Vision 是 macOS 系统内置,不要 `brew install tesseract`、不联网、不要 API Key
-- **零成本**:相比腾讯/阿里/百度云 OCR,无费用
-- **教学价值**:她会学到一条重要规律 —— "AI 不是万能,该回到人 + 工具协作时就回到"
-- **失败优雅**:OCR 失败时不让她不知所措,而是降级为"她填一两个关键字段 + AI 校验"的人机模式
+| 项 | 设计 |
+|---|---|
+| **形态** | 单一 Rust 静态链接二进制,随 App 安装到 `/Applications/AccountingAssassin.app/Contents/MacOS/aa-ocr`,首次启动后 App 把它符号链接到 `~/accounting-learner/.bin/aa-ocr`,加入 PATH |
+| **接口** | `aa-ocr <file.pdf\|jpg\|png>` → 输出统一 JSON 到 stdout(见下面 schema)|
+| **内部实现** | (a) 真 PDF 有文字层:Rust 内嵌 `pdf-extract` 提取;(b) 扫描件/图片:Rust 通过 `objc2` 调 macOS `Vision Framework` 做 OCR;(c) 统一把"字段(date/amount/vendor/tax_id)"做基本正则抽取 |
+| **退出码** | 0 = 成功;2 = 文件不存在;3 = 无法识别;4 = 部分字段缺失(JSON 里标注哪几个字段 confidence 低)|
 
-**实现路径**:Tauri Rust 侧通过 `objc2` crate 调用 Apple Vision Framework,或者更轻量地通过 `shortcuts run` 调起一个 macOS Shortcut。Ch 7 引导她**让 Claude Code 写**这段 Rust + Python 胶水代码 —— 完成"用 AI 教会计师用 AI 写 AI 工具"的元教学闭环。
+**统一 JSON schema**:
 
-**淘汰方案**(记录以备后查):
-- **Tesseract**:中文 traineddata 装起来繁琐,识别率不显著好于 Vision,放弃
+```json
+{
+  "source_file": "invoices/2026-04-001.pdf",
+  "fields": {
+    "date":     {"value": "2026-04-15", "confidence": 0.92},
+    "amount":   {"value": 1234.50,      "confidence": 0.88, "currency": "CNY"},
+    "vendor":   {"value": "上海某某商贸", "confidence": 0.81},
+    "tax_id":   {"value": null,         "confidence": 0.0,  "reason": "未识别"}
+  },
+  "raw_text": "完整识别出的全文..."
+}
+```
+
+##### 5.3.1.2 课程交付什么
+
+| 章节 | 她要做的(可达成范围)| 她**不**要做的 |
+|---|---|---|
+| Ch 7 | 写一段 Python 用 `subprocess.run(["aa-ocr", file], ...)`,解析返回的 JSON,处理失败字段 | 写 Rust、调 Vision Framework、写 OCR 算法 |
+| Ch 14 毕业项目 A | 把 Ch 7 学的扩展为"批量处理一个文件夹的发票 + 输出 Excel 汇总" | 同上 |
+
+**为什么这样划分**:
+- 零基础用户的可达成范围是 **"会调命令行工具 + 处理结构化数据"**,这是通用、可迁移、可教的能力
+- "写 OCR 引擎"是工业级工程师的工作,不属于本课程目标
+- 把 OCR 复杂度封装在 CLI 里,**毕业项目失败的概率降低 10 倍**:她写 Python 调一个稳定工具,远比她调 Vision API 容易
+
+##### 5.3.1.3 失败降级:人机协作
+
+`aa-ocr` 退出码 4(部分字段低 confidence)时,Python 脚本应做:
+- 把低 confidence 字段单独列出
+- 显示原始发票图片让她肉眼读
+- 让她**手填**这几个字段
+- 然后 AI(用她在 Ch 9 学的 Skill)对这条记录做最后一次合理性校验(金额 + 日期 + 抬头是否一致)
+
+这一条"OCR 失败 → 人填关键字段 → AI 校验"的降级流是 Ch 14 的核心教学内容 —— **她会理解"AI 工具不是万能,设计降级流是工程师的本职"**。
+
+##### 5.3.1.4 淘汰方案(记录以备后查)
+
+- **让她写 Rust + Vision 胶水**:零基础用户范围外,Codex review 指出过度设计,放弃
+- **Tesseract**:中文 traineddata 装起来繁琐,且需 `brew install`,放弃
+- **pdfplumber 直接给她用**:需要 `pip install`、虚拟环境,门槛比"调 CLI"高,放弃(其能力并入 `aa-ocr` 内部)
 - **云 OCR**(腾讯/阿里/百度):引入账号 / 计费 / 网络依赖,对零基础门槛过高,放弃
-- **Claude / GPT 视觉 API**:费用高、稳定性差、且属于章节强依赖,放弃
+- **Claude / GPT 视觉 API**:费用高、稳定性差、属于章节强依赖,放弃
 
 #### 5.3.2 流水分类 & 报表汇总
 
@@ -275,7 +331,7 @@ App 本身使用 **Tauri + React + TypeScript** 实现,以 macOS 原生 `.app` �
 | 2 | **traceback 倒着读** | 教她最后一行 + 行号定位 80% 的 bug,演示读 5 种常见报错:`SyntaxError` / `NameError` / `TypeError` / `KeyError` / `FileNotFoundError` |
 | 3 | **给 AI 提 bug 的"四段式"标准模板** | 一个标准沟通模板,见 § 5.4.2 |
 | 4 | **"再跑一遍"验证原则** | 永远不要相信"我已经修好了" —— AI 改完代码,她必须自己跑一遍才能说修好 |
-| 5 | **git reset 作为实验安全网** | 改坏了不慌:`git status` 看现状、`git diff` 看改了什么、`git checkout .` 回到上次能跑的版本 |
+| 5 | **git 作为实验安全网(事前快照 + 事后受控回退)** | **事前**:让 AI 试改之前先 `git commit -am 'before retry'` 留快照,事后回退无压力。**事后**:不要"改坏了就 reset"—— 先 `git status` 看哪些文件变了、再 `git diff` 看具体改了什么、确认要丢之后才用 `git restore .` 恢复已跟踪文件;新文件单独用 `git clean -i` 交互式选(避免误删)。**禁用** `git checkout .`(命令语义重载、丢未提交修改无警告)|
 | 6 | **何时停下来找老公** | 试 3 次 AI 还修不好 / 报错完全看不懂 / AI 开始绕圈,就该停。**这是个能力**,不是失败 |
 | 7 | **会计数据脏的特殊性** | 空行 / 合并单元格 / 日期格式不一致 / 币种 / 负数表示法 / 编码问题。教她"假设数据是脏的"作为默认心智 |
 
@@ -316,30 +372,39 @@ UnicodeDecodeError: 'utf-8' codec can't decode byte 0xb7
 深呼吸 → 不慌,bug 是对话不是失败
    │
    ▼
+【事前快照】 让 AI 改之前先:
+       git commit -am "before retry"
+   (这样无论 AI 怎么改,你都能干净回到这里)
+   │
+   ▼
 看 traceback 最后一行(行号 + 报错类型)
    │
    ▼
-按"四段式"模板把信息整理好
+按"四段式"模板把信息整理好(App 一键复制)
    │
    ▼
 粘给 Claude Code,让它解释 + 修复
    │
    ▼
-AI 改完代码 → 你自己跑一遍验证
+AI 改完代码 → 你自己跑一遍验证(不要相信"我已修复")
    │
-   ├─ 修好了 → git commit 一份快照,继续
+   ├─ 修好了 → git status 看变化 → git commit 一份快照,继续
    │
    └─ 没修好 / 改坏了
         │
         ▼
-   git status / git diff 看 AI 改了什么
+   git status      ← 先看 AI 改了哪些文件
+   git diff        ← 再看具体改了什么
         │
         ▼
-   重试 ≤ 3 次
+   决定:要 / 不要 / 部分要?
         │
-        ├─ 修好 → 继续
-        ├─ 仍卡 → git checkout . 回到上次能跑的版本,再问老公
-        └─ 报错完全看不懂 → 直接按"我卡住了"
+        ├─ 全部不要 → git restore .          (恢复已跟踪文件)
+        │              git clean -i          (新文件交互式选,可选)
+        │
+        ├─ 部分要 → 跟 AI 进一步细化要求,重试 ≤ 3 次
+        │
+        └─ 完全卡 → "我卡住了"按钮 + 通知老公
 ```
 
 这张图会做成 Ch 8 一开始就给出的 "海报",她以后随时翻回来看。
@@ -352,7 +417,7 @@ Ch 8 用 **3 个真实 bug 场景** 让她亲手走完整工作流:
 |---|---|---|
 | 练习 1 | 编码 bug:发票 CSV 是 GBK,代码假设 UTF-8 | 读 traceback → 套模板 → 让 AI 修 → 验证 |
 | 练习 2 | 静默 bug:求和漏一行(因为有合并单元格)| 学会"对数"验证,而不是相信脚本输出 |
-| 练习 3 | AI 越改越坏:多轮对话让 Claude 把简单代码改复杂、跑不通 | 学会 `git checkout .` 回退 + 重新提问 |
+| 练习 3 | AI 越改越坏:多轮对话让 Claude 把简单代码改复杂、跑不通 | 学会 `git status` → `git diff` 看清现状 → `git restore .` 受控回退 + 重新提问 |
 
 #### 5.4.5 进阶引用:Claude Code 自带的 systematic-debugging 工作流
 
@@ -688,11 +753,14 @@ jobs:
 ```
 [T+0s]   双击 → 启动画面(3s,Logo + "你的 AI 同事正在到岗...")
 [T+3s]   全屏欢迎页(不要求登录,不要求填资料,只展示"准备做什么")
-[T+5s]   点"开始" → 温暖进度条 + 流动文案("正在创建练习文件夹...")
+[T+5s]   点"开始" → 温暖进度条 + 流动文案
+         ("正在准备沙箱练习区..." / "正在加载示例发票数据...")
 [T+30s]  直接进入 Ch 1 第一段(无侧边栏,只有正文)
 [T+60s]  完成第一个对比演示 → 弹温暖反馈层 → 侧边栏展开
 [T+90s]  完整 UI 展开,她已"上钩"
 ```
+
+**首启文案的边界纪律**:T+5s 准备阶段**只准备沙箱(App 内存 + IndexedDB)**,**不**写本机文件系统。本机的 `~/accounting-learner/` 目录直到 Ch 5 过渡仪式才会通过 `initialize_real_env` 创建(见 § 6.3)。所有首启文案都必须配得上"沙箱"语义,不能让她误以为 App 已经在改她的电脑。
 
 ### 10.5 反馈收集
 
@@ -760,6 +828,10 @@ jobs:
 | **错误处理承诺** | 改为可验收措辞("隔离 + 翻译 + 兜底",不承诺"永不崩溃")| Codex review 指出绝对承诺不可验收(§ 8.1 / § 8.5) |
 | **安装/更新失败分支** | 在 § 10.2 / 10.3 显式列出兜底路径(右键失败 / xattr / 系统升级 / App 位置异常 / 更新失败)| Codex review 指出原分发链路太脆 |
 | **Debug 教学整合** | 把 Ch 8 从"Git 与撤销"升级为"Bug 来了怎么办:Debug + 撤销",新增 § 5.4 调试教学策略 | 用户指出原文档无系统 debug 教学,vibe coding 必然遇 bug,零基础用户的 debug 元能力是关键短板 |
+| **子进程安全边界** | RealEnvBridge 只暴露固定签名白名单命令,无 `execute_real_command` 通配口;用户脚本由用户自己终端跑,App 不替她执行;Checker 优先文件读取验证 | Codex review v2 指出 Tauri 路径白名单不约束子进程,需通过架构约束维持边界(§ 4.3)|
+| **OCR 实现路径收窄** | App 预置 `aa-ocr` Rust CLI(我们写),Ch 7 只教她"Python 调 CLI + 处理 JSON";不让零基础用户碰 Rust / Vision Framework / pip install | Codex review v2 指出原"让她写 Rust + objc2 胶水"过度设计,且 pdfplumber 非零依赖(§ 5.3.1)|
+| **git 回退命令规范** | 禁用 `git checkout .`(语义重载、丢未提交修改无警告);改用事前 `git commit` 快照 + 事后 `git status` / `git diff` 二次确认 + `git restore .` 受控回退,新文件用 `git clean -i` 交互式选 | Codex review v2 指出原命令对新手太危险(§ 5.4.1 / § 5.4.3)|
+| **订阅价格标注时效** | § 2.6 表头加"截至 2026-05-20,发布前复核",每行加官方链接列;补全 Claude Max $200 档、Cursor Pro+/Ultra、ChatGPT 五档 | Codex review v2 指出硬编码价格易过期 |
 | commit 规范 | 不带 Co-Authored-By 等 AI trailer | 用户全局偏好 |
 
 ---
