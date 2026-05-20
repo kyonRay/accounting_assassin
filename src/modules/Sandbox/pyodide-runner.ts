@@ -101,7 +101,7 @@ export async function createPyodideRunner(
           }
         }
       }
-      pyodide.FS.writeFile(fullPath, content, { encoding: "utf8" });
+      pyodide.FS.writeFile(fullPath, content);
     }
   }
 
