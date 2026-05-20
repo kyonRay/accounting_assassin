@@ -10,9 +10,9 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "test": "vitest",
-    "test:chapters": "vitest run content/chapters",
-    "test:modules": "vitest run src/modules tests/modules",
+    "test": "NODE_OPTIONS=--experimental-require-module vitest",
+    "test:chapters": "NODE_OPTIONS=--experimental-require-module vitest run content/chapters",
+    "test:modules": "NODE_OPTIONS=--experimental-require-module vitest run src/modules tests/modules",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit"
   },
