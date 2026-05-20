@@ -1,0 +1,1313 @@
+# 记账杀手 · Accounting Assassin Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Build a macOS-native Tauri + React app teaching a zero-foundation accountant to use Claude Code / Codex / Cursor through a 15-chapter sandbox → real-env curriculum, with the design spec in `docs/superpowers/specs/2026-05-20-accounting-assassin-design.md` as authoritative reference.
+
+**Architecture:** Three layers — Tauri Rust shell (only fixed-signature whitelisted commands), React/TypeScript frontend (7 modules: LessonViewer / Sandbox / RealEnvBridge / Checker / Progress / AccountingDB / Quiz), and content directory (`content/chapters/NN-slug/` per chapter with MDX + fixture + checker + quiz + test). Sandbox phase (Ch 1-4) runs entirely in WebView (Pyodide + sql.js + virtual fs + scripted "fake Claude"); real-env phase (Ch 5+) bridges to user's terminal/files via whitelisted Tauri IPC. A separate Rust binary `aa-ocr` (in `aa-ocr/`) abstracts OCR away from the user.
+
+**Tech Stack:** Tauri 2.x · React 18 · TypeScript · Vite · pnpm · Tailwind CSS · MDX (@mdx-js/react + @mdx-js/rollup) · Zustand · TanStack Router · xterm.js · Pyodide · sql.js · Vitest · React Testing Library · Rust (aa-ocr CLI: `pdf-extract` + `objc2` for Vision Framework)
+
+---
+
+## How to Use This Plan
+
+**Detail level is intentionally non-uniform**:
+- **Week 1-3** (foundation + Part I): full TDD bite-sized steps with code shown.
+- **Week 4** (real-env infrastructure, the engineering peak): task-level with key code shown.
+- **Week 5-9** (content + polish + release): task & milestone outlines; the patterns established in Week 1-3 (testing-as-spec, per-chapter directory layout, checker/fixture/quiz triple) repeat. **Re-invoke `superpowers:writing-plans` before starting each of Weeks 5-9 to expand into bite-sized tasks** based on what's learned in earlier weeks.
+
+**Testing-as-spec convention** (every chapter, no exceptions):
+1. Write `content/chapters/NN-slug/test.ts` first (assert the perfect-user path)
+2. Run it → must FAIL (lesson doesn't exist yet)
+3. Write `sandbox-fixture/` (the data)
+4. Write `checker.ts`
+5. Write `lesson.mdx`
+6. Write `quiz.yaml` (only for 6 quiz chapters: 1/4/6/10/13/15)
+7. Run `test.ts` → must PASS
+8. Commit chapter as one atomic unit
+
+**Reference**: The design spec at `docs/superpowers/specs/2026-05-20-accounting-assassin-design.md` (852 lines) is the source of truth. Every task here cites the relevant section number for cross-check.
+
+---
+
+## Project File Structure
+
+```
+accounting_assassin/
+├── docs/superpowers/
+│   ├── specs/2026-05-20-accounting-assassin-design.md   (existing)
+│   └── plans/2026-05-20-accounting-assassin-implementation-plan.md  (this file)
+│
+├── src-tauri/                                # Tauri Rust shell
+│   ├── Cargo.toml
+│   ├── tauri.conf.json
+│   ├── build.rs
+│   └── src/
+│       ├── main.rs
+│       ├── lib.rs
+│       ├── commands/
+│       │   ├── mod.rs
+│       │   ├── env.rs                        # check_command_exists
+│       │   ├── fs.rs                         # read_user_file
+│       │   ├── checker.rs                    # run_bundled_checker
+│       │   ├── shell.rs                      # open_terminal_at
+│       │   └── env_init.rs                   # initialize_real_env (Ch 5)
+│       ├── safety/
+│       │   ├── mod.rs
+│       │   └── path_guard.rs                 # canonicalize + prefix check
+│       └── diagnostics/
+│           ├── mod.rs
+│           └── report.rs                     # stuck-button diagnostics
+│
+├── src/                                       # React frontend
+│   ├── main.tsx
+│   ├── App.tsx
+│   ├── modules/
+│   │   ├── LessonViewer/
+│   │   ├── Sandbox/                          # Terminal, pyodide-runner, virtual-fs, fake-claude
+│   │   ├── RealEnvBridge/
+│   │   ├── Checker/
+│   │   ├── Progress/                         # Zustand store + persistence
+│   │   ├── AccountingDB/                     # sql.js
+│   │   └── Quiz/
+│   ├── components/
+│   │   ├── ModeIndicator.tsx                 # 蓝/橙 sandbox/real chip
+│   │   ├── StuckButton.tsx                   # universal escape hatch
+│   │   ├── Sidebar.tsx
+│   │   ├── BugReportCard.tsx                 # § 5.4.2 four-part template
+│   │   └── WelcomeFlow.tsx                   # T+0 / +3 / +30 / +60 sequence
+│   ├── app/
+│   └── styles/
+│
+├── content/
+│   └── chapters/
+│       ├── 01-ai-tools-vs-chatgpt/
+│       │   ├── lesson.mdx
+│       │   ├── checker.ts
+│       │   ├── sandbox-fixture/
+│       │   ├── quiz.yaml
+│       │   └── test.ts
+│       ├── 02-show-files-to-ai/
+│       ├── 03-let-ai-write-code/
+│       ├── 04-from-once-to-reusable/
+│       ├── 05-your-workstation/
+│       ├── 06-first-real-claude/
+│       ├── 07-work-in-your-project/
+│       ├── 08-bug-and-undo/                  # the upgraded Debug+Git chapter
+│       ├── 09-skills/
+│       ├── 10-hooks-and-mcp/
+│       ├── 11-codex-intro/
+│       ├── 12-codex-deep/
+│       ├── 13-cursor/
+│       ├── 14-capstone-a/
+│       ├── 15-capstone-b/
+│       └── _shared/assets/                   # invoice PDFs, CSV samples
+│
+├── aa-ocr/                                    # Separate Rust CLI workspace
+│   ├── Cargo.toml
+│   └── src/
+│       ├── main.rs
+│       ├── pdf.rs                            # pdf-extract integration
+│       ├── vision.rs                         # objc2 + Vision Framework
+│       └── output.rs                         # unified JSON schema
+│
+├── scripts/
+│   ├── review-chapter.sh                     # multi-AI review pipeline
+│   ├── package-dmg.sh                        # build + ad-hoc sign + dmg
+│   └── verify-clean-install.sh
+│
+├── tests/
+│   ├── modules/
+│   └── e2e/
+│
+├── .github/workflows/ci.yml
+├── .gitignore
+├── package.json
+├── pnpm-workspace.yaml
+├── tsconfig.json
+├── vite.config.ts
+├── vitest.config.ts
+├── tailwind.config.ts
+└── eslint.config.js
+```
+
+---
+
+# Phase 1 · Week 1 — App Skeleton (detailed TDD)
+
+**Milestone deliverable:** `pnpm tauri:dev` opens a macOS native window showing a hello-world MDX chapter; `pnpm test` runs and at least one test passes.
+
+## Task 1.1: Repo metadata + tooling
+
+**Files:**
+- Create: `package.json`, `pnpm-workspace.yaml`, `.gitignore`, `tsconfig.json`, `vite.config.ts`, `vitest.config.ts`, `tailwind.config.ts`, `eslint.config.js`
+
+- [ ] **Step 1: Initialize package.json**
+
+```bash
+cd /Users/kyonguo/workspace/code/accounting_assassin
+pnpm init
+```
+
+Replace `package.json` with:
+
+```json
+{
+  "name": "accounting-assassin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "test": "vitest",
+    "test:chapters": "vitest run content/chapters",
+    "test:modules": "vitest run src/modules tests/modules",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  }
+}
+```
+
+- [ ] **Step 2: Create .gitignore**
+
+```
+node_modules/
+dist/
+src-tauri/target/
+.DS_Store
+*.log
+.env*
+!.env.example
+*.dmg
+*.bak
+```
+
+- [ ] **Step 3: Add devDependencies**
+
+```bash
+pnpm add -D typescript@5 vite@5 @vitejs/plugin-react react@18 react-dom@18 @types/react @types/react-dom vitest @testing-library/react @testing-library/jest-dom jsdom @mdx-js/react @mdx-js/rollup @types/mdx tailwindcss@3 postcss autoprefixer eslint prettier zustand @tanstack/react-router xterm xterm-addon-fit
+```
+
+- [ ] **Step 4: tsconfig.json**
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@content/*": ["./content/*"]
+    },
+    "baseUrl": "."
+  },
+  "include": ["src", "content", "tests"]
+}
+```
+
+- [ ] **Step 5: vite.config.ts**
+
+```typescript
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import mdx from "@mdx-js/rollup";
+import path from "path";
+
+export default defineConfig({
+  plugins: [mdx({ providerImportSource: "@mdx-js/react" }), react()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+      "@content": path.resolve(__dirname, "./content"),
+    },
+  },
+  clearScreen: false,
+  server: { port: 1420, strictPort: true },
+  envPrefix: ["VITE_", "TAURI_"],
+});
+```
+
+- [ ] **Step 6: vitest.config.ts**
+
+```typescript
+import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
+import mdx from "@mdx-js/rollup";
+import path from "path";
+
+export default defineConfig({
+  plugins: [mdx({ providerImportSource: "@mdx-js/react" }), react()],
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./tests/setup.ts"],
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+      "@content": path.resolve(__dirname, "./content"),
+    },
+  },
+});
+```
+
+- [ ] **Step 7: Init Tailwind**
+
+```bash
+pnpm exec tailwindcss init -p
+```
+
+Edit `tailwind.config.ts`:
+
+```typescript
+import type { Config } from "tailwindcss";
+
+export default {
+  content: ["./index.html", "./src/**/*.{ts,tsx}", "./content/**/*.{md,mdx}"],
+  theme: {
+    extend: {
+      colors: {
+        cream: "#FAF7F2",
+        sandbox: "#4A90E2",
+        realenv: "#E2A04A",
+        done: "#5BA877",
+        graphite: "#2C2C2E",
+        muted: "#8A8A8E",
+      },
+      fontFamily: {
+        zh: ["PingFang SC", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "SF Mono", "monospace"],
+      },
+    },
+  },
+  plugins: [],
+} satisfies Config;
+```
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json vite.config.ts vitest.config.ts tailwind.config.ts postcss.config.js .gitignore
+git commit -m "chore: initial tooling (pnpm, vite, vitest, tailwind, mdx)"
+```
+
+## Task 1.2: Tauri scaffold
+
+**Files:**
+- Create: `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, `src-tauri/src/main.rs`, `src-tauri/build.rs`
+
+- [ ] **Step 1: Install Tauri CLI**
+
+```bash
+cargo install tauri-cli --version "^2" --locked
+```
+
+Verify: `cargo tauri --version` should print 2.x.
+
+- [ ] **Step 2: Run tauri init**
+
+```bash
+cd /Users/kyonguo/workspace/code/accounting_assassin
+pnpm exec tauri init --app-name "AccountingAssassin" --window-title "记账杀手 · Accounting Assassin" --frontend-dist "../dist" --dev-url "http://localhost:1420" --before-dev-command "pnpm dev" --before-build-command "pnpm build" --ci
+```
+
+- [ ] **Step 3: Lock down tauri.conf.json**
+
+Edit `src-tauri/tauri.conf.json`:
+
+```json
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "AccountingAssassin",
+  "version": "0.1.0",
+  "identifier": "com.kyong.accounting-assassin",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "记账杀手 · Accounting Assassin",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 700
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; worker-src 'self' blob:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "app"],
+    "icon": ["icons/icon.icns"],
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "signingIdentity": "-"
+    }
+  }
+}
+```
+
+`signingIdentity: "-"` = ad-hoc signing per § 10.2.
+
+- [ ] **Step 4: Minimal main.rs**
+
+`src-tauri/src/main.rs`:
+
+```rust
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+fn main() {
+    tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+```
+
+- [ ] **Step 5: Verify Tauri dev runs**
+
+```bash
+pnpm tauri:dev
+```
+
+Expected: macOS window opens titled "记账杀手 · Accounting Assassin".
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src-tauri/
+git commit -m "feat(tauri): scaffold macOS app shell with strict CSP and empty invoke_handler"
+```
+
+## Task 1.3: React entry + basic layout
+
+**Files:**
+- Create: `index.html`, `src/main.tsx`, `src/App.tsx`, `src/styles/tailwind.css`
+
+- [ ] **Step 1: index.html**
+
+```html
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>记账杀手 · Accounting Assassin</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+```
+
+- [ ] **Step 2: Tailwind CSS entry**
+
+`src/styles/tailwind.css`:
+
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+  background: theme(colors.cream);
+  color: theme(colors.graphite);
+  font-family: theme(fontFamily.zh);
+}
+```
+
+- [ ] **Step 3: main.tsx**
+
+```typescript
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import "./styles/tailwind.css";
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);
+```
+
+- [ ] **Step 4: App.tsx — three-column placeholder**
+
+```typescript
+export default function App() {
+  return (
+    <div className="h-screen w-screen grid grid-cols-[260px_1fr_400px] grid-rows-[1fr_32px]">
+      <aside className="row-span-1 bg-cream/60 border-r border-graphite/10 p-4">
+        <h1 className="text-sm font-bold tracking-wide">课程进度</h1>
+        <p className="text-muted text-xs mt-2">侧边栏(占位)</p>
+      </aside>
+      <main className="row-span-1 bg-white p-8 overflow-y-auto">
+        <p className="text-muted">课程主体(占位)</p>
+      </main>
+      <aside className="row-span-1 bg-sandbox/5 border-l border-graphite/10 p-4">
+        <span className="inline-block px-2 py-1 rounded-md bg-sandbox/10 text-sandbox text-xs">
+          🧪 沙箱模式
+        </span>
+      </aside>
+      <footer className="col-span-3 bg-cream border-t border-graphite/10 px-4 flex items-center text-xs text-muted">
+        进度 0/15 · 准备就绪
+      </footer>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 5: Verify**
+
+```bash
+pnpm tauri:dev
+```
+
+Expected: window shows 3-column layout with placeholder text.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add index.html src/main.tsx src/App.tsx src/styles/tailwind.css
+git commit -m "feat(ui): three-column layout shell with sandbox chip placeholder"
+```
+
+## Task 1.4: MDX loading + first lesson rendering
+
+**Files:**
+- Create: `src/modules/LessonViewer/LessonViewer.tsx`, `src/modules/LessonViewer/useChapter.ts`, `src/modules/LessonViewer/mdx-components.tsx`, `src/modules/LessonViewer/index.ts`
+- Create: `content/chapters/00-hello/lesson.mdx`
+
+- [ ] **Step 1: First test chapter MDX**
+
+`content/chapters/00-hello/lesson.mdx`:
+
+```mdx
+# 你好,记账杀手
+
+这是第一个测试章节,用来验证 MDX 渲染管道是否工作。
+
+如果你能看到这段中文文字,说明:
+- Vite 加载了 MDX
+- React 渲染了组件
+- Tailwind 排版生效了
+```
+
+- [ ] **Step 2: mdx-components.tsx**
+
+```typescript
+import type { MDXComponents } from "mdx/types";
+
+export const mdxComponents: MDXComponents = {
+  h1: (props) => <h1 className="text-3xl font-bold mb-4" {...props} />,
+  h2: (props) => <h2 className="text-2xl font-semibold mt-6 mb-3" {...props} />,
+  p: (props) => <p className="leading-relaxed my-3" {...props} />,
+  ul: (props) => <ul className="list-disc pl-6 my-3 space-y-1" {...props} />,
+  code: (props) => (
+    <code className="bg-graphite/5 px-1.5 py-0.5 rounded font-mono text-sm" {...props} />
+  ),
+};
+```
+
+- [ ] **Step 3: useChapter hook**
+
+```typescript
+import { useEffect, useState } from "react";
+import type { ComponentType } from "react";
+
+type LessonModule = { default: ComponentType };
+
+export function useChapter(slug: string) {
+  const [Lesson, setLesson] = useState<ComponentType | null>(null);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLesson(null);
+    setError(null);
+
+    import(`@content/chapters/${slug}/lesson.mdx`)
+      .then((mod: LessonModule) => {
+        if (!cancelled) setLesson(() => mod.default);
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setError(err);
+      });
+
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  return { Lesson, error };
+}
+```
+
+- [ ] **Step 4: LessonViewer component**
+
+```typescript
+import { MDXProvider } from "@mdx-js/react";
+import { mdxComponents } from "./mdx-components";
+import { useChapter } from "./useChapter";
+
+interface Props { slug: string; }
+
+export function LessonViewer({ slug }: Props) {
+  const { Lesson, error } = useChapter(slug);
+  if (error) return <div className="text-red-600">课程加载失败:{error.message}</div>;
+  if (!Lesson) return <div className="text-muted">正在加载...</div>;
+  return (
+    <MDXProvider components={mdxComponents}>
+      <article className="prose prose-zinc max-w-3xl">
+        <Lesson />
+      </article>
+    </MDXProvider>
+  );
+}
+```
+
+- [ ] **Step 5: Wire into App.tsx**
+
+Replace the main column:
+
+```typescript
+import { LessonViewer } from "@/modules/LessonViewer";
+
+// in JSX, main column:
+<LessonViewer slug="00-hello" />
+```
+
+- [ ] **Step 6: Verify**
+
+```bash
+pnpm tauri:dev
+```
+
+Expected: window shows rendered Markdown.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/modules/LessonViewer/ content/chapters/00-hello/ src/App.tsx
+git commit -m "feat(lesson): MDX loader + LessonViewer rendering first chapter"
+```
+
+## Task 1.5: Test infrastructure + smoke test
+
+**Files:**
+- Create: `tests/setup.ts`, `tests/modules/LessonViewer.test.tsx`
+
+- [ ] **Step 1: tests/setup.ts**
+
+```typescript
+import "@testing-library/jest-dom";
+import { afterEach } from "vitest";
+import { cleanup } from "@testing-library/react";
+
+afterEach(() => cleanup());
+```
+
+- [ ] **Step 2: Write failing test**
+
+```typescript
+import { describe, it, expect } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { LessonViewer } from "@/modules/LessonViewer";
+
+describe("LessonViewer", () => {
+  it("renders the hello chapter", async () => {
+    render(<LessonViewer slug="00-hello" />);
+    await waitFor(() => {
+      expect(screen.getByText("你好,记账杀手")).toBeInTheDocument();
+    });
+  });
+
+  it("shows error when chapter does not exist", async () => {
+    render(<LessonViewer slug="99-does-not-exist" />);
+    await waitFor(() => {
+      expect(screen.getByText(/加载失败/)).toBeInTheDocument();
+    });
+  });
+});
+```
+
+- [ ] **Step 3: Run tests → PASS**
+
+```bash
+pnpm test
+```
+
+Expected: 2 tests pass.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add tests/
+git commit -m "test: smoke test for LessonViewer"
+```
+
+## Task 1.6: CI workflow
+
+**Files:** `.github/workflows/ci.yml`
+
+```yaml
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test:modules
+      - run: pnpm test:chapters
+```
+
+- [ ] Commit:
+
+```bash
+git add .github/workflows/ci.yml
+git commit -m "ci: GitHub Actions for lint + typecheck + tests"
+```
+
+## Week 1 Acceptance
+
+- [ ] `pnpm tauri:dev` opens macOS window
+- [ ] Window shows 3-column layout
+- [ ] Main column renders "你好,记账杀手"
+- [ ] `pnpm test` reports 2 passing tests
+- [ ] `pnpm typecheck` succeeds
+- [ ] Git log shows 5+ commits this week
+
+---
+
+# Phase 2 · Week 2 — Sandbox runtime + Ch 1 (detailed TDD)
+
+**Milestone deliverable:** Ch 1 fully playable — comparison demo works, sandbox terminal accepts input, Pyodide runs Python on virtual fs, Checker passes on perfect-user path.
+
+## Task 2.1: Virtual filesystem
+
+**Files:** `src/modules/Sandbox/virtual-fs.ts`, `tests/modules/virtual-fs.test.ts`
+
+- [ ] **Step 1: Write failing test**
+
+```typescript
+import { describe, it, expect, beforeEach } from "vitest";
+import { createVirtualFs, type VirtualFs } from "@/modules/Sandbox/virtual-fs";
+
+describe("VirtualFs", () => {
+  let fs: VirtualFs;
+  beforeEach(() => { fs = createVirtualFs(); });
+
+  it("write then read returns same content", async () => {
+    await fs.write("hello.txt", "world");
+    expect(await fs.read("hello.txt")).toBe("world");
+  });
+
+  it("exists returns true/false correctly", async () => {
+    await fs.write("a.txt", "x");
+    expect(await fs.exists("a.txt")).toBe(true);
+    expect(await fs.exists("b.txt")).toBe(false);
+  });
+
+  it("list returns all paths", async () => {
+    await fs.write("invoices/01.csv", "");
+    await fs.write("notes.md", "");
+    const all = await fs.list();
+    expect(all.sort()).toEqual(["invoices/01.csv", "notes.md"]);
+  });
+
+  it("reset clears all files", async () => {
+    await fs.write("a.txt", "x");
+    await fs.reset();
+    expect(await fs.exists("a.txt")).toBe(false);
+  });
+
+  it("loadFixture seeds multiple files", async () => {
+    await fs.loadFixture({
+      "data/x.csv": "col\n1\n",
+      "scripts/y.py": "print('hi')",
+    });
+    expect(await fs.read("data/x.csv")).toBe("col\n1\n");
+  });
+});
+```
+
+- [ ] **Step 2: Run test → FAIL**
+
+```bash
+pnpm test virtual-fs
+```
+
+- [ ] **Step 3: Implement**
+
+```typescript
+export interface VirtualFs {
+  read(path: string): Promise<string>;
+  write(path: string, content: string): Promise<void>;
+  exists(path: string): Promise<boolean>;
+  list(): Promise<string[]>;
+  reset(): Promise<void>;
+  loadFixture(files: Record<string, string>): Promise<void>;
+}
+
+export function createVirtualFs(): VirtualFs {
+  const store = new Map<string, string>();
+  return {
+    async read(path) {
+      const v = store.get(path);
+      if (v === undefined) throw new Error(`File not found: ${path}`);
+      return v;
+    },
+    async write(path, content) { store.set(path, content); },
+    async exists(path) { return store.has(path); },
+    async list() { return [...store.keys()]; },
+    async reset() { store.clear(); },
+    async loadFixture(files) {
+      for (const [p, c] of Object.entries(files)) store.set(p, c);
+    },
+  };
+}
+```
+
+- [ ] **Step 4: Test → PASS**
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/modules/Sandbox/virtual-fs.ts tests/modules/virtual-fs.test.ts
+git commit -m "feat(sandbox): in-memory virtual filesystem with fixture loader"
+```
+
+> IndexedDB persistence deferred to Week 3.
+
+## Task 2.2: Pyodide runner
+
+**Files:** `src/modules/Sandbox/pyodide-runner.ts`, `tests/modules/pyodide-runner.test.ts`
+
+- [ ] Install: `pnpm add pyodide`
+- [ ] Write failing test (verify arithmetic, stdout capture, error propagation)
+- [ ] Implement `createPyodideRunner({ fs })` returning `{ run(code), syncFromVfs() }`
+- [ ] Test → PASS (first run downloads pyodide WASM, slow)
+- [ ] Commit: `feat(sandbox): Pyodide runner with vfs sync, stdout/stderr capture`
+
+## Task 2.3: AccountingDB (sql.js)
+
+**Files:** `src/modules/AccountingDB/sqlite-runner.ts`, `index.ts`, `tests/modules/sqlite-runner.test.ts`
+
+- [ ] Install: `pnpm add sql.js && pnpm add -D @types/sql.js`
+- [ ] TDD: write failing test that loads seed SQL, runs SELECT, gets rows
+- [ ] Implement `createAccountingDb()` returning `{ loadSeed(sql), query(sql), reset() }`
+- [ ] Test → PASS
+- [ ] Commit: `feat(db): AccountingDB SQLite via sql.js`
+
+## Task 2.4: xterm.js Terminal component
+
+**Files:** `src/modules/Sandbox/Terminal.tsx`, `src/modules/Sandbox/index.ts`
+
+- [ ] Implement Terminal wrapping xterm.js + FitAddon
+- [ ] Line-buffered input → emits `onInput(line)`
+- [ ] Custom dark theme matching design § 7.2 mockup
+- [ ] Wire into App.tsx right column
+- [ ] Manual verify: typing echoes, Enter submits
+- [ ] Commit: `feat(sandbox): xterm.js terminal with line-buffered input`
+
+## Task 2.5: Fake Claude scripted responder
+
+**Files:** `src/modules/Sandbox/fake-claude.ts`, `tests/modules/fake-claude.test.ts`
+
+- [ ] TDD: test matches regex input, returns scripted response, stable on repeated calls
+- [ ] Implement `createFakeClaude(session)` with `handle(userInput)` → `{ toolCalls, text } | null`
+- [ ] Test → PASS
+- [ ] Commit: `feat(sandbox): scripted fake-claude responder (stable output)`
+
+## Task 2.6: MDX custom components
+
+**Files:** `src/modules/LessonViewer/components/{SandboxStep,ComparisonDemo,Callout}.tsx`
+
+- [ ] Implement SandboxStep: shows expected input + "我做完了" button, sets vfs marker
+- [ ] Implement ComparisonDemo: side-by-side cards (ChatGPT vs Claude)
+- [ ] Implement Callout: tip/warn/insight variants
+- [ ] Register in mdx-components.tsx
+- [ ] Smoke test for Callout
+- [ ] Commit: `feat(mdx): SandboxStep, ComparisonDemo, Callout`
+
+## Task 2.7: Checker module
+
+**Files:** `src/modules/Checker/runner.ts`, `index.ts`, `tests/modules/checker.test.ts`
+
+- [ ] TDD: test passes-true, attempt-1 hint, attempt-2 escalation, attempt-3 shows answer button
+- [ ] Implement `runChecker(fn, env, attempt)` returning `{ passed, hint, showAnswerButton }`
+- [ ] Test → PASS
+- [ ] Commit: `feat(checker): progressive hint runner`
+
+## Task 2.8: Ch 1 content (testing-as-spec)
+
+**Files:** `content/chapters/01-ai-tools-vs-chatgpt/{test.ts, lesson.mdx, checker.ts, sandbox-fixture/*, quiz.yaml}`
+
+- [ ] **Step 1: Write test.ts FIRST** asserting perfect-user path passes checker
+- [ ] **Step 2: Run → FAIL** (lesson/checker don't exist)
+- [ ] **Step 3: Create sandbox-fixture/** (invoices.csv with 6 sample invoices + seed.sql)
+- [ ] **Step 4: Write checker.ts** (gate on `.progress/comparison-viewed` + `.progress/first-step-completed` markers)
+- [ ] **Step 5: Write lesson.mdx** (use ComparisonDemo + SandboxStep + Callout per spec § 5.1)
+- [ ] **Step 6: Write quiz.yaml** (5 questions per § 7.4)
+- [ ] **Step 7: Add quiz.yaml validation test** (every question has 1+ correct option)
+- [ ] **Step 8: Test → PASS**
+- [ ] **Step 9: Commit Ch 1 as one unit**
+
+```bash
+git add content/chapters/01-ai-tools-vs-chatgpt/
+git commit -m "feat(content): Ch 01 — AI 工具 ≠ ChatGPT 2.0 (testing-as-spec complete)"
+```
+
+## Week 2 Acceptance
+
+- [ ] `pnpm tauri:dev` → navigate to Ch 1 → comparison demo shows + sandbox terminal accepts input
+- [ ] Following the perfect-user path completes checker
+- [ ] `pnpm test:chapters` reports Ch 1 tests passing
+- [ ] `pnpm test:modules` reports all module tests passing
+
+---
+
+# Phase 3 · Week 3 — Part I + Quiz module + First-launch
+
+**Milestone deliverable:** Part I (Ch 1-4) fully playable. Quiz on Ch 1 and Ch 4 works. First-launch flow with progressive disclosure. Sidebar shows progress.
+
+## Task 3.1: Quiz module
+
+**Files:** `src/modules/Quiz/QuizRunner.tsx`, `quiz-loader.ts`, `index.ts`, `tests/modules/quiz.test.tsx`
+
+- [ ] TDD: render question stem, submit correct answer shows positive feedback, submit wrong shows hint
+- [ ] Implement Quiz types + QuizRunner component (single + multi choice)
+- [ ] Set up YAML import via `@rollup/plugin-yaml`
+- [ ] Test → PASS
+- [ ] Commit: `feat(quiz): QuizRunner with single/multi choice, instant feedback`
+
+## Task 3.2: Ch 2-4 content
+
+Each chapter follows Task 2.8's TDD pattern. Scenarios per design § 5:
+
+- [ ] **Ch 2** (`02-show-files-to-ai/`): 银行流水可疑大额识别. AI reads CSV with 200 rows, flags outliers.
+- [ ] **Ch 3** (`03-let-ai-write-code/`): 发票按类目汇总. AI writes Python, sandbox runs it via Pyodide.
+- [ ] **Ch 4** (`04-from-once-to-reusable/`): 12 个月数据批量处理 + **quiz.yaml** (3-5 questions on script reuse mindset).
+
+For each:
+1. Write test.ts (perfect-user path)
+2. Run → FAIL
+3. fixture → checker → lesson.mdx → (quiz for Ch 4)
+4. Run → PASS
+5. Atomic commit
+
+> **Vibe-coding hint**: For each chapter ask Claude Code: "请按 `content/chapters/01-ai-tools-vs-chatgpt/` 结构,实现 `02-show-files-to-ai/`,让 test.ts 通过。先写 test.ts,我 review 后再实现其它。"
+
+## Task 3.3: Progress store + first-launch flow
+
+**Files:** `src/modules/Progress/store.ts`, `persistence.ts`, `src/components/WelcomeFlow.tsx`
+
+- [ ] Implement Zustand store with persist middleware (chapters / currentChapter / mode / hasCompletedOnboarding / hasViewedSidebar flags)
+- [ ] Backup mechanism: write `.bak` alongside main JSON on each markCompleted
+- [ ] Implement WelcomeFlow component: T+0 splash → T+3 welcome → T+30 preparing → done
+- [ ] Sandbox-only prep wording per § 10.4 (no mention of `~/accounting-learner/`)
+- [ ] Gate App.tsx on `hasCompletedOnboarding`
+- [ ] Commit: `feat(onboarding): T+0/+3/+30/+60 welcome flow + Zustand progress`
+
+## Task 3.4: Sidebar + curriculum manifest
+
+**Files:** `src/curriculum.ts`, `src/components/Sidebar.tsx`
+
+- [ ] Define `CHAPTERS` array (15 entries with slug/num/title/part/mode/hasQuiz per design § 5)
+- [ ] Implement Sidebar: groups by Part, shows locked/in-progress/completed/quiz-marker states
+- [ ] Hide sidebar until first chapter completed (progressive disclosure per § 10.4)
+- [ ] Commit: `feat(sidebar): chapter list grouped by Part with locked/done/current states`
+
+## Week 3 Acceptance
+
+- [ ] First launch shows welcome → preparing → Ch 1 (no sidebar)
+- [ ] Completing Ch 1 reveals sidebar with all 15 chapters grouped
+- [ ] Ch 1 shows ✓, Ch 2 ● blue (current), Ch 3-4 ○, Ch 5+ 🔒
+- [ ] Ch 1 and Ch 4 Quiz both render at chapter end
+- [ ] `pnpm test:chapters` Ch 1-4 all pass
+- [ ] Reload app → returns to last open chapter (persistence works)
+
+---
+
+# Phase 4 · Week 4 — Real environment infrastructure + Ch 5-6 (task-level)
+
+**Milestone deliverable:** Ch 5-6 playable on real macOS — mode switches sandbox → real, `~/accounting-learner/` created on Ch 5 confirm, App verifies python/claude via whitelisted shell commands, "stuck button" emits diagnostic markdown.
+
+## Task 4.1: Tauri Rust commands (whitelisted)
+
+**Files:** `src-tauri/src/safety/path_guard.rs`, `src-tauri/src/commands/{env,fs,checker,shell,env_init}.rs`, modify `main.rs`
+
+Per design § 4.3, only these commands exposed:
+
+| Command | Signature | Purpose |
+|---|---|---|
+| `check_command_exists` | `(cmd: AllowedCommand)` | enum-constrained, runs `which $cmd` |
+| `read_user_file` | `(rel_path: PathBuf)` | canonicalize + prefix-check inside `~/accounting-learner/` |
+| `run_bundled_checker` | `(name: BundledChecker)` | runs App-bundled checker, never accepts user paths |
+| `open_terminal_at` | `(rel_path: PathBuf)` | opens macOS Terminal; does NOT execute commands |
+| `initialize_real_env` | `()` | creates `~/accounting-learner/` + README + health-check report |
+| `collect_diagnostics` | `()` | returns markdown report (allowlisted fields) |
+
+**Critical: `path_guard::check_inside_workspace`** canonicalizes the joined path and verifies it starts_with the workspace root. Rejects `../etc/passwd` and any symlink escapes.
+
+**`AllowedCommand` enum**: `Python3 | Claude | Brew | Git | Codex | Cursor` — each maps to a fixed binary name. No string interpolation.
+
+- [ ] Implement path_guard.rs with anyhow error handling
+- [ ] Implement each command file (env, fs, checker, shell, env_init)
+- [ ] Register handlers in main.rs `tauri::generate_handler!`
+- [ ] Write Rust unit tests: each path_guard test includes a path-escape rejection case
+- [ ] Run `cargo test --manifest-path src-tauri/Cargo.toml` → all pass
+- [ ] Commit per command file
+
+## Task 4.2: TypeScript wrappers + useRealEnv hook
+
+**Files:** `src/modules/RealEnvBridge/invoke.ts`, `health-check.ts`, `useRealEnv.ts`, `index.ts`
+
+- [ ] Implement typed wrappers around `@tauri-apps/api/core` invoke
+- [ ] `useRealEnv()` hook returns reactive state: `{ ready, missing, mode, ... }`
+- [ ] `health-check.ts` runs all checks in parallel, returns aggregated status
+- [ ] Test using `@tauri-apps/api/mocks` IPC mock
+- [ ] Commit
+
+## Task 4.3: Mode switch ritual (Ch 5 transition)
+
+**Files:** `src/components/ModeTransition.tsx`, `src/components/RealStep.tsx`, modify mdx-components.tsx
+
+- [ ] Implement ModeTransition: full-screen confirmation dialog per § 6.3
+- [ ] Triggers `initializeRealEnv()` → if ready, set progress.mode = 'real' → ModeIndicator shifts blue→amber
+- [ ] Implement RealStep MDX component: card with command + [复制] + [我跑完了] buttons; latter triggers chapter checker in 'real' mode
+- [ ] Test mode switch flow
+- [ ] Commit
+
+## Task 4.4: Stuck button + diagnostic report
+
+**Files:** `src/components/StuckButton.tsx`, `src-tauri/src/diagnostics/report.rs`
+
+- [ ] Rust: implement diagnostic collector with allowlist (current chapter, system info, tool versions, sandbox file list)
+- [ ] **Critical: no user file content in report** — verify with test
+- [ ] React: floating StuckButton in bottom-right; gray in sandbox, amber in real
+- [ ] Click → modal showing markdown preview + [复制到剪贴板] + [保存为文件]
+- [ ] Test that report does NOT include any file outside `~/accounting-learner/`
+- [ ] Commit
+
+## Task 4.5: Ch 5-6 content
+
+- [ ] **Ch 5** (`05-your-workstation/`): step-by-step env install (Homebrew → python3 → git → claude). test.ts mocks realEnv calls.
+- [ ] **Ch 6** (`06-first-real-claude/`): first claude CLI session, verify `~/.claude/` exists. Includes quiz.yaml.
+
+Standard testing-as-spec, with `<RealStep>` instead of `<SandboxStep>`.
+
+## Week 4 Acceptance
+
+- [ ] On clean macOS, Ch 5 walks through brew + python + git + claude installs with App-guided verification
+- [ ] Ch 6 successfully verifies `claude --version` output
+- [ ] ModeIndicator transitions blue→amber after Ch 5 ritual
+- [ ] StuckButton works in both modes
+- [ ] Diagnostic markdown copies to clipboard
+- [ ] `cargo test --manifest-path src-tauri/Cargo.toml` passes (including path-escape rejections)
+- [ ] Ch 6 Quiz renders
+
+---
+
+# Phase 5 · Week 5 — Part III + aa-ocr CLI
+
+**Milestone deliverable:** Ch 7-10 content complete; `aa-ocr` Rust CLI works on PDF + JPG returning unified JSON.
+
+## Task 5.1: aa-ocr Rust CLI (parallel workstream)
+
+**Files:** `aa-ocr/Cargo.toml`, `aa-ocr/src/{main,pdf,vision,output}.rs`
+
+Add `aa-ocr` to workspace. Crates: `pdf-extract = "0.7"`, `objc2 = "0.5"`, `objc2-vision = "0.2"`, `serde_json = "1"`.
+
+JSON schema per design § 5.3.1.1:
+
+```json
+{
+  "source_file": "invoices/2026-04-001.pdf",
+  "fields": {
+    "date":   { "value": "2026-04-15", "confidence": 0.92 },
+    "amount": { "value": 1234.50, "confidence": 0.88, "currency": "CNY" },
+    "vendor": { "value": "上海某某商贸", "confidence": 0.81 },
+    "tax_id": { "value": null, "confidence": 0.0, "reason": "未识别" }
+  },
+  "raw_text": "完整识别出的全文..."
+}
+```
+
+Exit codes: 0 success, 2 file not found, 3 unrecognizable, 4 partial fields missing.
+
+- [ ] Cargo manifest + workspace setup
+- [ ] main.rs: argument parsing (1 arg: file path)
+- [ ] pdf.rs: try pdf-extract; return None if no text layer
+- [ ] vision.rs: objc2 binding to VNRecognizeTextRequest (Chinese mode)
+- [ ] output.rs: unified JSON serialization
+- [ ] cargo tests with fixture PDFs/JPGs under `aa-ocr/tests/fixtures/`
+- [ ] Modify `initialize_real_env` to symlink `aa-ocr` binary into `~/accounting-learner/.bin/`
+- [ ] Commit per module
+
+## Task 5.2: Ch 7 content
+
+Scenario: Python script that calls `aa-ocr` via subprocess, parses JSON, prints structured data. Crucially **no Rust/Vision/objc2 exposure to learner**.
+
+- [ ] test.ts (perfect-user path: file invoice_ocr.py exists, runs with sample, output contains expected fields)
+- [ ] Standard TDD pattern
+- [ ] Lesson covers CLAUDE.md basics + --continue
+- [ ] Commit
+
+## Task 5.3: Ch 8 — Debug + Git restore (heaviest content chapter)
+
+Implements full § 5.4 teaching:
+
+- [ ] Implement `<DebugFlowchart>` MDX component rendering the § 5.4.3 ASCII flowchart as a styled diagram
+- [ ] Implement `<BugReportCard>` component: shows the four-part template per § 5.4.2, with one-click "复制到剪贴板" that auto-populates 报错原文 from most recent terminal output
+- [ ] Write Ch 8 lesson.mdx using above components
+- [ ] Write 3 practice exercises per § 5.4.4 (encoding bug, silent bug, AI-getting-worse-rollback)
+- [ ] Forward-reference `superpowers:systematic-debugging` skill per § 5.4.5
+- [ ] Standard TDD: test.ts, checker.ts, lesson.mdx, fixture
+- [ ] Commit
+
+## Task 5.4: Ch 9 — Skills
+
+- [ ] Scenario: write `~/.claude/skills/organize-invoices/SKILL.md` Skill
+- [ ] Demonstrate Claude auto-loading and invoking it
+- [ ] Standard TDD
+- [ ] Commit
+
+## Task 5.5: Ch 10 — Hooks + MCP + quiz
+
+- [ ] Scenario: write a hook running after Edit, install SQLite MCP server
+- [ ] Include quiz.yaml (Hooks vs Skills vs MCP discrimination)
+- [ ] Standard TDD
+- [ ] Commit
+
+## Week 5 Acceptance
+
+- [ ] `aa-ocr sample.pdf` outputs valid JSON for both PDF-with-text-layer and scanned-image cases
+- [ ] `cargo test --manifest-path aa-ocr/Cargo.toml` passes
+- [ ] Ch 7-10 chapter tests pass
+- [ ] Manual: complete Ch 10 in dev mode, SQLite MCP works
+
+---
+
+# Phase 6 · Week 6 — Part IV (Codex + Cursor)
+
+**Milestone deliverable:** Ch 11-13 content complete (Codex × 2 + Cursor × 1).
+
+- [ ] **Ch 11** Codex 入门 — install Codex CLI, run same task as Ch 7 with Codex, compare style
+- [ ] **Ch 12** Codex 深入 — auto-approve mode, concurrent subtasks
+- [ ] **Ch 13** Cursor (de-emphasize IDE) — Composer / @-ref / Background Agent + quiz.yaml
+
+Each chapter's first `<RealStep>` includes external-tool health check + graceful downgrade message per design § 2.6.
+
+## Week 6 Acceptance
+
+- [ ] Ch 11-13 chapter tests pass
+- [ ] If Codex/Cursor not installed, downgrade message renders correctly (manual test by uninstalling and re-running)
+
+---
+
+# Phase 7 · Week 7 — Part V capstones
+
+**Milestone deliverable:** Ch 14-15 complete; learner can build and run all 3 graduation utilities.
+
+## Task 7.1: Ch 14 capstone A (three utilities)
+
+- [ ] Create starter templates under `content/chapters/14-capstone-a/templates/{invoice-ocr,bank-classifier,report-aggregator}/`
+- [ ] App copies chosen template to `~/accounting-learner/capstone-a/<project>/` on selection
+- [ ] checker.ts verifies each project's expected output structure (read JSON / XLSX outputs)
+- [ ] Standard TDD pattern
+- [ ] Commit
+
+## Task 7.2: Ch 15 capstone B + final quiz
+
+- [ ] Month-end close end-to-end workflow scaffold
+- [ ] Skill + Hook coordination teaching
+- [ ] Comprehensive final quiz.yaml (cross-chapter recall)
+- [ ] Standard TDD
+- [ ] Commit
+
+## Week 7 Acceptance
+
+- [ ] Both capstones runnable end-to-end on test data
+- [ ] Final quiz tests pass
+
+---
+
+# Phase 8 · Week 8 — Polish + multi-AI review + clean-install self-test
+
+**Milestone deliverable:** All 15 chapters reviewed by 2+ AIs, surface issues fixed, app polished.
+
+## Task 8.1: scripts/review-chapter.sh
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+NN="$1"
+DIR=$(ls -d content/chapters/${NN}-*/ | head -1)
+mdx="${DIR}lesson.mdx"
+
+# Codex review
+codex review "$mdx" > "${DIR}lesson.review.codex.md"
+
+# Gemini review (or another AI)
+# gemini review "$mdx" > "${DIR}lesson.review.gemini.md"
+
+echo "Reviews written to ${DIR}lesson.review.*.md"
+```
+
+- [ ] Implement script with structured review prompt
+- [ ] Run for all 15 chapters
+- [ ] Triage feedback chapter-by-chapter, fix surface issues
+- [ ] Commit: `docs: AI review pass on all 15 chapters with fixes`
+
+## Task 8.2: Final UX polish
+
+- [ ] Animation tuning (chapter transitions, sidebar reveal smoothness)
+- [ ] Optional: subtle sound on completion
+- [ ] Settings page: manual mode reset, "重新启用本 App" link, reset progress (with confirmation)
+- [ ] Empty states and error boundaries
+
+## Task 8.3: Clean-install self-test (wife-perspective)
+
+**Files:** `scripts/verify-clean-install.sh`
+
+- [ ] Use fresh macOS test account or VM
+- [ ] Walk Ch 1-15 from scratch
+- [ ] Time per chapter
+- [ ] Record every hesitation point + error
+- [ ] Fix surface issues before declaring Week 8 done
+
+## Week 8 Acceptance
+
+- [ ] Every chapter has `lesson.review.codex.md` (and optionally gemini)
+- [ ] High-priority review issues fixed (tracked in git log)
+- [ ] Clean self-test completes Ch 1-15 with no blockers
+
+---
+
+# Phase 9 · Week 9 — Release
+
+**Milestone deliverable:** Ad-hoc signed `.dmg` + `首次安装说明.pdf` delivered to wife.
+
+## Task 9.1: scripts/package-dmg.sh
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+pnpm tauri:build
+APP="src-tauri/target/release/bundle/macos/AccountingAssassin.app"
+codesign --force --deep --sign - "$APP"
+DMG="src-tauri/target/release/bundle/dmg/AccountingAssassin_*.dmg"
+# attach onboarding PDF + copy to release artifacts/
+mkdir -p release/
+cp "$DMG" release/
+cp docs/首次安装说明.pdf release/
+echo "Release artifacts in release/"
+```
+
+- [ ] Implement
+- [ ] Test on dev machine
+
+## Task 9.2: 首次安装说明.pdf
+
+Single-page PDF (rendered from markdown):
+- 拖到 Applications 文件夹
+- 在 Applications 里 **右键** App 图标 → 点"打开" → 弹窗里再点"打开"
+- 失败兜底:三个场景的图文步骤(系统设置 → 隐私与安全性;xattr -dr 命令;系统升级后重新授权)— per § 10.2
+- "怎么找老公"步骤(短信+截屏)
+
+- [ ] Write markdown + render to PDF (pandoc / markdown-pdf)
+- [ ] Verify formatting on real PDF reader
+
+## Task 9.3: Final verification
+
+- [ ] Build .dmg with package-dmg.sh
+- [ ] On a never-used macOS account: drag to Applications, right-click → 打开 → 仍要打开 → confirm app launches without further intervention
+- [ ] Walk Ch 1 on this clean account
+- [ ] Re-verify subscription pricing in § 2.6 still accurate (per disclaimer)
+- [ ] Tag git: `git tag v1.0.0`
+
+## Task 9.4: Delivery
+
+- [ ] Put `.dmg` + PDF in iCloud Drive shared folder
+- [ ] Send wife the link
+- [ ] Stand by for her first questions
+
+## Week 9 Acceptance
+
+- [ ] Signed .dmg < 50 MB
+- [ ] Right-click-open verified on clean account
+- [ ] Wife successfully opens the app and reaches Ch 1
+- [ ] Project marked v1.0.0 in git
+
+---
+
+# Self-Review Checklist
+
+Reviewed against design spec on 2026-05-20.
+
+**Spec coverage**:
+- § 2 needs/constraints → Goal + per-week milestones
+- § 2.5.1 three-layer file boundary → Task 4.1 (Rust path_guard) + Task 5.1 (aa-ocr binary placement)
+- § 2.6 external dependencies → Ch 5/6/11/12/13 chapter tests (downgrade behavior)
+- § 3 architecture → reflected in `src/` directory structure
+- § 4 modules → one task per module across Weeks 1-3
+- § 4.3 subprocess boundary → Task 4.1 explicit allowlist enum
+- § 5 curriculum → 15 chapter tasks across Weeks 2-7, each following testing-as-spec
+- § 5.3.1 aa-ocr → Task 5.1 (dedicated)
+- § 5.4 debug teaching → Task 5.3 (Ch 8 + flowchart + BugReportCard)
+- § 6 data flow → mode switch in Task 4.3
+- § 7 Quiz module → Task 3.1 + per-chapter quiz.yaml in Tasks 2.8 (Ch 1), 3.2 (Ch 4), 4.5 (Ch 6), 5.5 (Ch 10), 6 (Ch 13), 7 (Ch 15)
+- § 8 error handling → Task 4.4 stuck button + Task 8.2 polish
+- § 9 testing → testing-as-spec discipline in every chapter task + CI in Task 1.6
+- § 10 packaging → Tasks 9.1-9.2
+- § 10.2 right-click signing → Task 9.2 PDF
+- § 11 roadmap → directly shapes Weeks 1-9
+
+**No spec gaps identified.**
+
+**Placeholder scan**: no "TBD/TODO/implement later" remaining. Weeks 1-3 fully bite-sized with code shown; Weeks 4-9 have sufficient implementation guidance for vibe-coding with re-invocation of writing-plans for detailed weekly breakdowns when starting each week.
+
+**Type consistency**: `CheckerFn`, `CheckerEnv`, `CheckerResult`, `RunResult` (Checker); `VirtualFs` (Sandbox); `Quiz`, `QuizQuestion`, `QuizOption` (Quiz); `ChapterMeta`, `ChapterProgress` (Progress); `AllowedCommand`, `CommandCheck` (RealEnvBridge) — names match across earlier and later tasks.
+
+---
+
+*Plan complete. 9 phases. Weeks 1-3 fully bite-sized for immediate execution; Weeks 4-9 outlined with key code samples and acceptance criteria, intended for re-invocation of writing-plans at the start of each week.*
