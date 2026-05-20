@@ -10,10 +10,11 @@ describe("LessonViewer", () => {
     });
   });
 
-  it("shows error when chapter does not exist", async () => {
+  it("shows friendly Chinese error when chapter does not exist", async () => {
     render(<LessonViewer slug="99-does-not-exist" />);
     await waitFor(() => {
-      expect(screen.getByText(/加载失败/)).toBeInTheDocument();
+      expect(screen.getByText(/找不到这一章/)).toBeInTheDocument();
+      expect(screen.getAllByText(/99-does-not-exist/).length).toBeGreaterThan(0);
     });
   });
 });
