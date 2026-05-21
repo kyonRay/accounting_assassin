@@ -44,20 +44,23 @@ function QuestionCard({ question, index, total, onSubmit }: QuestionCardProps) {
   const { type, id: qId, stem, options } = question;
   const isMulti = type === "multiple-choice";
 
-  function toggleOption(optId: string) {
+  function selectOption(optId: string) {
     if (state.phase !== "answering") return;
-    setState((prev) => {
-      if (prev.phase !== "answering") return prev;
-      const next = new Set(prev.selected);
-      if (isMulti) {
+    if (isMulti) {
+      setState((prev) => {
+        if (prev.phase !== "answering") return prev;
+        const next = new Set(prev.selected);
         if (next.has(optId)) next.delete(optId);
         else next.add(optId);
-      } else {
-        next.clear();
-        next.add(optId);
-      }
-      return { phase: "answering", selected: next };
-    });
+        return { phase: "answering", selected: next };
+      });
+    } else {
+      // Single-choice: auto-submit immediately on selection
+      const selected = new Set([optId]);
+      const correct = isAllCorrect(selected, options);
+      setState({ phase: "submitted", selected, allCorrect: correct });
+      onSubmit?.(qId, [optId], correct);
+    }
   }
 
   function handleSubmit() {
@@ -91,6 +94,11 @@ function QuestionCard({ question, index, total, onSubmit }: QuestionCardProps) {
       <div className="mb-4 whitespace-pre-line text-base leading-relaxed text-graphite">
         {stem}
       </div>
+
+      {/* Single-choice: hint that clicking an option auto-submits */}
+      {!isMulti && state.phase === "answering" && (
+        <p className="mb-2 text-xs text-muted">点选项即出反馈</p>
+      )}
 
       {/* Multiple-choice selection count helper */}
       {isMulti && state.phase === "answering" && state.selected.size > 0 && (
@@ -135,7 +143,7 @@ function QuestionCard({ question, index, total, onSubmit }: QuestionCardProps) {
             <div key={opt.id}>
               <button
                 type="button"
-                onClick={() => toggleOption(opt.id)}
+                onClick={() => selectOption(opt.id)}
                 disabled={submitted}
                 className={`w-full rounded-lg border px-4 py-3 text-left text-sm transition-colors ${optBg} ${
                   submitted ? "cursor-default" : "cursor-pointer hover:bg-graphite/8"
@@ -162,7 +170,7 @@ function QuestionCard({ question, index, total, onSubmit }: QuestionCardProps) {
 
       {/* Action button */}
       <div className="mt-4 flex items-center gap-3">
-        {!submitted ? (
+        {!submitted && isMulti && (
           <button
             type="button"
             onClick={handleSubmit}
@@ -171,7 +179,8 @@ function QuestionCard({ question, index, total, onSubmit }: QuestionCardProps) {
           >
             提交
           </button>
-        ) : (
+        )}
+        {submitted && (
           <button
             type="button"
             onClick={handleRetry}

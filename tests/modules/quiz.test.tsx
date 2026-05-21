@@ -149,15 +149,12 @@ describe("QuizRunner rendering", () => {
     expect(screen.getByText("另一个错误")).toBeInTheDocument();
   });
 
-  // 7. single-choice submit correct
-  it("single-choice: selecting correct option and submitting shows '答对了'", () => {
+  // 7. single-choice: clicking correct option auto-submits (no 提交 button needed)
+  it("single-choice: selecting correct option immediately shows '答对了'", () => {
     render(<QuizRunner quiz={SINGLE_QUESTION_QUIZ} />);
 
-    // Select the correct option (B)
+    // Select the correct option (B) — feedback appears immediately, no 提交 click
     fireEvent.click(screen.getByText("正确选项").closest("button")!);
-
-    // Click submit
-    fireEvent.click(screen.getByText("提交"));
 
     // Should show 答对了 banner
     expect(screen.getByRole("status")).toHaveTextContent("答对了");
@@ -165,15 +162,12 @@ describe("QuizRunner rendering", () => {
     expect(screen.getByText("完全正确!")).toBeInTheDocument();
   });
 
-  // 8. single-choice submit wrong
-  it("single-choice: selecting wrong option and submitting shows '再想想' + correct badge", () => {
+  // 8. single-choice: clicking wrong option auto-submits
+  it("single-choice: selecting wrong option immediately shows '再想想' + correct badge", () => {
     render(<QuizRunner quiz={SINGLE_QUESTION_QUIZ} />);
 
-    // Select the wrong option (A)
+    // Select the wrong option (A) — feedback appears immediately
     fireEvent.click(screen.getByText("错误选项").closest("button")!);
-
-    // Click submit
-    fireEvent.click(screen.getByText("提交"));
 
     // Should show 再想想 banner
     expect(screen.getByRole("status")).toHaveTextContent("再想想");
@@ -219,9 +213,8 @@ describe("QuizRunner rendering", () => {
   it("'再答一次' resets the question back to answering state", () => {
     render(<QuizRunner quiz={SINGLE_QUESTION_QUIZ} />);
 
-    // Select and submit
+    // Select option — auto-submits for single-choice
     fireEvent.click(screen.getByText("正确选项").closest("button")!);
-    fireEvent.click(screen.getByText("提交"));
 
     // Banner should be visible
     expect(screen.getByRole("status")).toBeInTheDocument();
@@ -229,39 +222,49 @@ describe("QuizRunner rendering", () => {
     // Click 再答一次
     fireEvent.click(screen.getByText("再答一次"));
 
-    // Banner should be gone, submit button back
+    // Banner should be gone, hint text back, no 提交 button for single-choice
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    expect(screen.getByText("提交")).toBeInTheDocument();
+    expect(screen.getByText("点选项即出反馈")).toBeInTheDocument();
     // Feedback text should be gone
     expect(screen.queryByText("完全正确!")).not.toBeInTheDocument();
   });
 
-  // 12. onSubmit callback fires correctly
-  it("onSubmit callback fires with (questionId, selectedIds, correctness)", () => {
+  // 12. onSubmit callback fires correctly for single-choice (on option click)
+  it("onSubmit callback fires with (questionId, selectedIds, correctness) on option click", () => {
     const onSubmit = vi.fn();
     render(<QuizRunner quiz={SINGLE_QUESTION_QUIZ} onSubmit={onSubmit} />);
 
-    // Select wrong option A
+    // Select wrong option A — fires immediately
     fireEvent.click(screen.getByText("错误选项").closest("button")!);
-    fireEvent.click(screen.getByText("提交"));
 
     expect(onSubmit).toHaveBeenCalledOnce();
     expect(onSubmit).toHaveBeenCalledWith("q1", ["A"], false);
   });
 
-  it("onSubmit callback fires with correct=true when right answer submitted", () => {
+  it("onSubmit callback fires with correct=true when right answer selected", () => {
     const onSubmit = vi.fn();
     render(<QuizRunner quiz={SINGLE_QUESTION_QUIZ} onSubmit={onSubmit} />);
 
     fireEvent.click(screen.getByText("正确选项").closest("button")!);
-    fireEvent.click(screen.getByText("提交"));
 
     expect(onSubmit).toHaveBeenCalledWith("q1", ["B"], true);
   });
 
-  // Submit button is disabled until an option is selected
-  it("submit button is disabled when no option selected", () => {
+  // 13. single-choice has NO 提交 button (not just disabled — absent)
+  it("single-choice: 提交 button is not rendered before selection", () => {
     render(<QuizRunner quiz={SINGLE_QUESTION_QUIZ} />);
+    expect(screen.queryByText("提交")).not.toBeInTheDocument();
+  });
+
+  // 14. multi-choice STILL shows 提交 button (regression guard)
+  it("multi-choice: 提交 button is present before submission", () => {
+    render(<QuizRunner quiz={MULTI_QUESTION_QUIZ} />);
+    expect(screen.getByText("提交")).toBeInTheDocument();
+  });
+
+  // Submit button is disabled until an option is selected (multi-choice only)
+  it("multi-choice: submit button is disabled when no option selected", () => {
+    render(<QuizRunner quiz={MULTI_QUESTION_QUIZ} />);
     const submitBtn = screen.getByText("提交");
     expect(submitBtn).toBeDisabled();
   });
@@ -295,20 +298,18 @@ describe("QuizRunner rendering", () => {
 
     render(<QuizRunner quiz={twoQuestionQuiz} />);
 
-    // Submit Q1 correctly
+    // Submit Q1 by clicking its correct option (single-choice auto-submits)
     fireEvent.click(screen.getByText("Q1正确").closest("button")!);
-    // Two submit buttons exist (one per question)
-    const submitButtons = screen.getAllByText("提交");
-    expect(submitButtons).toHaveLength(2);
-    fireEvent.click(submitButtons[0]);
 
     // Q1 shows 答对了
     const statuses = screen.getAllByRole("status");
     expect(statuses).toHaveLength(1);
     expect(statuses[0]).toHaveTextContent("答对了");
 
-    // Q2 still has its submit button (not affected by Q1)
-    expect(screen.getByText("提交")).toBeInTheDocument();
+    // Q2 still shows hint text (not submitted, no 提交 button for single-choice)
     expect(screen.queryByText("Q2正确反馈")).not.toBeInTheDocument();
+    // Both questions exist but only Q1 is submitted
+    expect(screen.getByText("第一题?")).toBeInTheDocument();
+    expect(screen.getByText("第二题?")).toBeInTheDocument();
   });
 });
