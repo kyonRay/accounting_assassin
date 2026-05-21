@@ -3,9 +3,14 @@ import react from "@vitejs/plugin-react";
 import mdx from "@mdx-js/rollup";
 import path from "path";
 import yaml from "@rollup/plugin-yaml";
+import remarkGfm from "remark-gfm";
 
 export default defineConfig({
-  plugins: [mdx({ providerImportSource: "@mdx-js/react" }), react(), yaml()],
+  plugins: [
+    mdx({ providerImportSource: "@mdx-js/react", remarkPlugins: [remarkGfm] }),
+    react(),
+    yaml(),
+  ],
   test: {
     environment: "jsdom",
     globals: true,
