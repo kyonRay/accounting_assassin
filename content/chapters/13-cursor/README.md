@@ -56,6 +56,12 @@ Ch 13 的 `hasQuiz` 为 `true`，是 6 个测验节点之一（Ch 1/4/6/10/13/15
 - Quiz 题目的措辞、干扰项内容（只要答案方向不变）
 - Callout 的 title 和 children
 
+## 可以自由改动的（补充）
+
+### `background-agent-tried` 没有 `command=` 属性——这是故意的
+
+Background Agent 只能从 Cursor GUI 内部启动（通过命令面板或侧边栏入口），没有对应的终端命令可以直接打开它。因此 `background-agent-tried` 的 `<RealStep>` 不设置 `command=` 属性，这与其他步骤不一致，但符合实际情况。如果 Cursor 未来提供了 CLI 入口，可以补上。
+
 ## 技术约束说明
 
 ### Cursor CLI 安装（截至 2026-05）

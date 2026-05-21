@@ -67,17 +67,17 @@ questions:
     options:
       - id: A
         text: "每次用 codex exec 之前，先提交 Git 快照（git add -A && git commit）"
-        feedback: "完全正确！没有 Git 快照，auto-approve 模式下 AI 的文件修改就没有明确的撤销目标。Git 快照是唯一的安全网。"
+        feedback: "完全正确！没有 Git 快照，auto-approve 模式下 AI 的文件修改就没有明确的撤销目标。工作目录限制（规则四）能缩小范围，精确描述（规则三）能减少误操作——但只有 Git 快照（规则一）才是唯一能让你「一键回到操作前」的安全网。"
         correct: true
       - id: B
         text: "只在 macOS 上使用 codex exec，Windows 上不安全"
         feedback: "不对。这条规则和操作系统无关。安全与否取决于你有没有 Git 快照，以及任务描述是否精确。"
       - id: C
-        text: "每次运行结束后，用 rm -rf 清理工作目录以防数据泄露"
-        feedback: "绝对不对！这是第 12 章 quiz 里那个「危险 hook」的变体。破坏性命令不应该在自动化流程里出现。"
+        text: "任务描述大致说清楚方向就好，auto-approve 会自动处理细节"
+        feedback: "不对。第三条安全规则明确要求：任务描述必须精确，因为 auto-approve 模式下 Codex 会直接执行，没有人工确认的机会。模糊的描述+自动执行=不可预测的结果。"
       - id: D
-        text: "任务描述必须是英文，中文指令 Codex 处理不好"
-        feedback: "不对。Codex 支持中文任务描述，这不是安全规则的内容。"
+        text: "保证工作目录是 ~/accounting-learner/ 就行了，边界问题 Codex 自己会守住"
+        feedback: "不对。这混淆了第四条规则（明确指定工作目录）和第一条规则（Git 快照）的优先级。工作目录限制只是缩小了风险范围——如果没有 Git 快照，Codex 在目录内的所有修改仍然无法回滚。快照才是唯一的撤销机制。"
 
   - id: q5
     type: single-choice
