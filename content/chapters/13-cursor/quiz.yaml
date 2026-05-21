@@ -1,0 +1,120 @@
+title: "检查你对第 13 章和 Part IV 的理解"
+description: "6 道题 · 大约 5 分钟 · 答错也没关系，有解析"
+questions:
+  - id: q1
+    type: single-choice
+    stem: |
+      你需要把 scripts/ 目录下的 8 个 Python 文件，全部改成在末尾打印一行"运行完成"。最适合用哪个工具？
+    options:
+      - id: A
+        text: "Claude Code——在终端里开启对话，让它改文件"
+        feedback: "Claude Code 可以做到，但它倾向于逐步确认每一步，而且没有图形化的多文件审阅界面。这种明确的批量任务更适合 Codex 或 Cursor Composer。"
+      - id: B
+        text: "Codex CLI——用 codex exec 批量自动处理全部文件"
+        feedback: "完全正确！这正是 Codex exec 的强项：任务明确、重复、批量，提前做好 Git 快照，一条命令跑完所有文件。"
+        correct: true
+      - id: C
+        text: "Cursor Background Agent——把任务交给它异步跑"
+        feedback: "Background Agent 也是一个选项，但它更适合不确定需要多长时间的任务。对于「修改 8 个文件末尾」这种很明确的批量操作，Codex exec 更直接。"
+      - id: D
+        text: "手动打开每个文件，自己一行一行改"
+        feedback: "这正是我们学习这些工具要避免的事……8 个文件还可以接受，但如果是 80 个呢？"
+
+  - id: q2
+    type: single-choice
+    stem: |
+      Cursor 的 @ 引用功能解决了什么问题？
+    options:
+      - id: A
+        text: "它能让 AI 自动找到你项目里所有有 bug 的地方"
+        feedback: "不对。@ 引用是上下文定位工具，不是 bug 检测工具。它让你可以精准指定 AI 应该看哪个文件或函数。"
+      - id: B
+        text: "它能让 AI 每次都记住你上次对话的内容"
+        feedback: "不对。@ 引用是给当前对话「喂」上下文的方式，不是持久记忆机制。"
+      - id: C
+        text: "它省去了每次开新对话都要先解释「我的项目里有个 xxx 文件」的步骤"
+        feedback: "完全正确！@ 引用让你直接把文件内容传给 AI，跳过解释项目结构的环节。你可以 @ 文件、函数、甚至文档链接。"
+        correct: true
+      - id: D
+        text: "它让 Cursor 把你提到的所有文件自动合并成一个大文件"
+        feedback: "不对。@ 引用是给 AI 提供上下文，不会合并或修改你的文件。"
+
+  - id: q3
+    type: multiple-choice
+    stem: |
+      关于 Cursor Background Agent，下面哪些描述是正确的？（可多选）
+    options:
+      - id: A
+        text: "它是异步的——你提交任务后可以去做别的事，等它完成通知你"
+        feedback: "正确。这是 Background Agent 与 Claude Code / Codex CLI 最本质的差别：工作节奏是异步的，而不是你在终端里等它跑完。"
+        correct: true
+      - id: B
+        text: "它比 Claude Code 聪明，能解决 Claude 解决不了的问题"
+        feedback: "不对。Background Agent 和 Claude Code 背后的 AI 能力差不多，区别在于工作流模式（异步 vs 同步），不是智能程度。"
+      - id: C
+        text: "它适合处理耗时较长、不需要你实时介入的任务"
+        feedback: "正确。重构一批文件、生成测试用例、整理文档结构这类任务，放给 Background Agent 跑，自己去做别的，是典型的使用场景。"
+        correct: true
+      - id: D
+        text: "通常需要 Cursor Pro 订阅才能使用"
+        feedback: "正确。Background Agent 是 Cursor 的付费功能，免费账号通常无法使用或有严格限制。"
+        correct: true
+
+  - id: q4
+    type: single-choice
+    stem: |
+      你在第 12 章学过 codex exec 的四条安全规则。其中最重要的一条是什么？
+    options:
+      - id: A
+        text: "每次用 codex exec 之前，先提交 Git 快照（git add -A && git commit）"
+        feedback: "完全正确！没有 Git 快照，auto-approve 模式下 AI 的文件修改就没有明确的撤销目标。Git 快照是唯一的安全网。"
+        correct: true
+      - id: B
+        text: "只在 macOS 上使用 codex exec，Windows 上不安全"
+        feedback: "不对。这条规则和操作系统无关。安全与否取决于你有没有 Git 快照，以及任务描述是否精确。"
+      - id: C
+        text: "每次运行结束后，用 rm -rf 清理工作目录以防数据泄露"
+        feedback: "绝对不对！这是第 12 章 quiz 里那个「危险 hook」的变体。破坏性命令不应该在自动化流程里出现。"
+      - id: D
+        text: "任务描述必须是英文，中文指令 Codex 处理不好"
+        feedback: "不对。Codex 支持中文任务描述，这不是安全规则的内容。"
+
+  - id: q5
+    type: single-choice
+    stem: |
+      下面哪种说法最准确地描述了 Cursor 相对于 Claude Code 的定位？
+    options:
+      - id: A
+        text: "Cursor 是比 Claude Code 更强大的 AI，应该完全替代 Claude Code"
+        feedback: "不对。这是本章明确避免的误解。两者的 AI 能力相当，区别在于工作流和界面设计。没有「更强」之分，只有「更适合」之分。"
+      - id: B
+        text: "Cursor 是一个代码编辑器，只有程序员才需要学"
+        feedback: "这正是本章要破除的刻板印象。Cursor 的价值对于会计来说在于 Composer / @ 引用 / Background Agent 三个工作流，而不是「代码编辑器」本身。"
+      - id: C
+        text: "Cursor 是第三种 AI 工作流工具，在多文件编辑和异步任务上有特定优势"
+        feedback: "完全正确！这是本章的核心定位：Cursor 不是「你的新编辑器」，而是一个在多文件操作和异步任务上有独特工作流的工具。"
+        correct: true
+      - id: D
+        text: "Cursor 是 OpenAI 出品的工具，和 Codex 是同一家公司"
+        feedback: "不对。Cursor 是 Anysphere 公司出品的，与 Codex（OpenAI 出品）是不同的公司和产品。Claude Code 才是 Anthropic 出品的。"
+
+  - id: q6
+    type: multiple-choice
+    stem: |
+      你现在有三个 AI 工具可以选择。以下哪些场景适合用 Claude Code？（可多选）
+    options:
+      - id: A
+        text: "你不太确定要怎么处理这批发票，想边讨论边试试"
+        feedback: "正确。探索性对话、边想边做——这正是 Claude Code 的强项。它倾向于先确认意图再行动，适合还在思考方向的任务。"
+        correct: true
+      - id: B
+        text: "你有 50 个 CSV 文件需要做完全一样的格式转换"
+        feedback: "不太合适。明确的、重复的批量操作更适合 Codex exec——自动跑完 50 个文件，不需要逐个确认。"
+      - id: C
+        text: "你刚发现一个脚本报错，想弄清楚为什么、怎么修"
+        feedback: "正确。调试和排查问题是探索性任务——Claude Code 的对话式风格（先解释问题再提方案）在这种场景下很有价值。"
+        correct: true
+      - id: D
+        text: "你想用一个对话来理解某个 Python 概念，顺便写个示例"
+        feedback: "正确。概念解释 + 边写边学，正是 Claude Code 对话式工作流的典型用法。"
+        correct: true

@@ -1,0 +1,316 @@
+# 第 13 章 · Cursor 工作流：第三种 vibe-coding 方式
+
+<Callout type="warn" title="没有 Cursor 订阅？先看这里">
+Cursor Pro 订阅约 $20/月（截至 2026-05 价格）。如果你目前还没有订阅，完全没问题——**本章的概念部分同样有价值**，你可以通读了解三种工具的差异，等以后有了 Cursor 账号再回来跑手操部分。
+
+遇到这种情况时，跳过「安装」「登录」和三个体验步骤，直接读到最后的「三工具对比」部分。概念学到了，工具可以之后再补。
+</Callout>
+
+---
+
+## 1. 为什么要认识第三种工具？
+
+到目前为止你已经有了两位 AI 同事：
+
+- **Claude Code**——对话探索型，喜欢先确认再动手
+- **Codex CLI**——批量执行型，接到任务就开干，完成后汇报
+
+第 13 章介绍 **Cursor**。不过，在开始之前，有一点非常重要：
+
+> **Cursor 不是"你的新编辑器"。**
+
+作为一个从来没有写过代码的会计，你不需要学习一个新的代码编辑器。你需要的是：**Cursor 里的三个特定工作流**——它们能做到 Claude Code 和 Codex CLI 在终端里做不到的事。
+
+这三个工作流是：
+
+| 功能 | 一句话描述 |
+|---|---|
+| **Composer** | 一次 prompt 修改多个文件，AI 帮你在项目里"到处跑" |
+| **@ 引用** | 输入 `@` 精准定位文件/函数，不需要先解释你的项目结构 |
+| **Background Agent** | 把耗时任务交给 Cursor 异步跑，你去喝茶，它做完通知你 |
+
+学完这三个工作流，你就掌握了 Cursor 的核心价值。其余的编辑器功能，可以忽略。
+
+---
+
+## 2. 安装 Cursor 并配置 CLI
+
+<RealStep
+  id="cursor-installed"
+  expectsCli="Cursor"
+  command="cursor --version"
+>
+  **第一步：下载并安装 Cursor**
+
+  打开 [cursor.com](https://cursor.com)，点击下载按钮，安装 macOS 版本的 Cursor.app。
+
+  **或者**，如果你更习惯 Homebrew：
+
+  ```bash
+  brew install --cask cursor
+  ```
+
+  **第二步：把 `cursor` 命令安装到终端**
+
+  Cursor 装好之后，还需要一步才能在终端里用 `cursor` 命令：
+
+  1. 打开 Cursor.app
+  2. 按 `Cmd+Shift+P` 打开命令面板
+  3. 输入 **"Install 'cursor' command"**，回车确认
+
+  这会把 `cursor` CLI 安装到你的 PATH 里。完成后在终端里验证：
+
+  ```bash
+  cursor --version
+  ```
+
+  你会看到类似 `Cursor 0.x.x` 的版本号。
+
+  <Callout type="tip" title="找不到「Install 'cursor' command」？">
+  在命令面板里搜索 "shell command" 或 "install cursor"，不同版本的 Cursor 菜单文字可能略有差异。或者在菜单栏找 **Cursor → Install 'cursor' command**。
+  </Callout>
+
+  看到版本号之后，点「我跑完了」。
+</RealStep>
+
+---
+
+## 3. 登录 Cursor
+
+<RealStep
+  id="cursor-logged-in"
+  command="cursor --version"
+>
+  Cursor 通过 cursor.com 账号验证身份。
+
+  <Callout type="warn" title="需要 Cursor Pro 订阅（或免费额度）">
+  Cursor 有免费额度（有限的 AI 请求次数），Pro 约 $20/月。以下三个工作流中，Background Agent 通常需要 Pro 订阅。
+
+  如果你目前只有免费账号，Composer 和 @ 引用可以在免费额度内体验；Background Agent 部分可以先读内容，有 Pro 后再跑实操。
+  </Callout>
+
+  **登录步骤**（通常在首次打开 Cursor.app 时自动触发）：
+
+  1. 打开 Cursor.app
+  2. 在欢迎界面点「Sign In」
+  3. 用 Google / GitHub / Email 完成 cursor.com 网页授权
+  4. 回到 Cursor，左下角会显示你的账号邮箱
+
+  也可以通过 `Cmd+Shift+P → "Sign In"` 手动触发登录。
+
+  确认左下角或侧边栏显示了你的账号信息之后，点「我跑完了」。
+</RealStep>
+
+---
+
+## 4. Cursor 超能力一：Composer——一次改多个文件
+
+**Composer 是 Cursor 最重要的功能**，也是它与 Claude Code / Codex CLI 最大的区别：你给它一个跨越多个文件的任务，它会同时打开、修改多个文件，统一处理。
+
+在终端里，Claude Code 和 Codex 也能修改多文件——但 Cursor Composer 的优势在于：你可以在图形界面里**看到每个文件的改动、逐个接受或拒绝**，同时保持整个任务上下文完整。
+
+### 典型使用场景
+
+你想把 `~/accounting-learner/scripts/` 目录下所有 Python 脚本的报错信息改为中文。手动改每个文件很烦——Composer 一次搞定。
+
+<RealStep
+  id="composer-tried"
+  command="cursor ~/accounting-learner"
+>
+  **在终端里用 Cursor 打开你的工作目录：**
+
+  ```bash
+  cursor ~/accounting-learner
+  ```
+
+  或者在 Cursor.app 里通过 **File → Open Folder** 打开 `~/accounting-learner`。
+
+  **打开 Composer：**
+
+  按 `Cmd+Shift+P`，搜索 **"Open Composer"**，回车。
+
+  （Composer 的快捷键在不同版本可能是 `Cmd+I` 或 `Cmd+K`——用命令面板最保险。）
+
+  **给 Composer 一个多文件任务：**
+
+  在 Composer 输入框里输入：
+
+  ```
+  帮我在 scripts/ 目录下所有 Python 文件里，
+  在每个脚本末尾添加一行：
+  print(f"[完成] 脚本运行结束，时间：{__import__('datetime').datetime.now()}")
+  ```
+
+  按回车，观察 Composer 如何同时展示多个文件的修改建议。你可以逐个文件接受（Accept）或拒绝（Reject）。
+
+  <Callout type="tip" title="scripts/ 目录里没有 Python 文件？">
+  没关系——输入一个简化版任务，比如：
+
+  ```
+  在 ~/accounting-learner 目录下新建 scripts/hello.py 和 scripts/world.py 两个文件，
+  每个文件里写一行 print("hello") 或 print("world")
+  ```
+
+  让 Composer 创建一批文件再来体验修改。
+  </Callout>
+
+  观察到 Composer 展示了多文件改动建议之后，点「我跑完了」。
+</RealStep>
+
+---
+
+## 5. Cursor 超能力二：@ 引用——精准锁定上下文
+
+**@ 引用解决了一个日常烦恼**：每次开始一个新对话，你都要花时间解释"我的项目里有个 xxx 文件，它是用来做 yyy 的"……这很烦。
+
+在 Cursor 里，输入 `@` 就会弹出文件/函数选择器。你直接把文件"喂"给 AI，它立刻知道你在说哪个文件的哪个部分，不需要你解释项目结构。
+
+<RealStep
+  id="at-ref-tried"
+>
+  在 Cursor 的对话框（Chat，`Cmd+L`）或 Composer 输入框里，输入 `@`。
+
+  你会看到一个下拉列表，列出了你工作目录里的文件。
+
+  选择一个你想讨论的文件，比如 `invoice_ocr.py`（如果它存在），或者你在上一步里创建的 `scripts/hello.py`。
+
+  然后继续输入一个问题，例如：
+
+  ```
+  @scripts/hello.py 帮我把这个文件改成可以接受命令行参数，
+  接收一个名字并打印「你好，[名字]！」
+  ```
+
+  **观察 @ 引用的效果**：
+  - Cursor 不需要你先解释文件在哪里、是什么
+  - 它直接读取那个文件的内容，在回答里精准引用你的代码
+  - 你可以在同一个对话里 @ 多个文件，逐步扩大上下文范围
+
+  <Callout type="insight" title="@ 引用的本质">
+  @ 引用做的事，和你手动把文件内容复制粘贴给 AI 是一样的——只不过 Cursor 帮你自动化了这个步骤。  
+  真正有价值的是：**你可以 @ 一个函数、一个类、甚至一个文档链接**，不只是文件。这让你可以非常精准地控制 AI 看到的上下文范围。
+  </Callout>
+
+  用 @ 引用了一个文件并观察到 AI 的精准回应之后，点「我跑完了」。
+</RealStep>
+
+---
+
+## 6. Cursor 超能力三：Background Agent——异步工作，去喝茶
+
+**Background Agent 是 Cursor 与 Claude Code / Codex 最本质的差异**：
+
+- Claude Code 和 Codex CLI 是**同步的**——你在终端里等它跑完，期间做不了别的
+- Cursor Background Agent 是**异步的**——你把任务交给它，它在后台跑，你可以去做别的事，它做完了通知你
+
+这对于耗时较长的任务（比如重构一批文件、生成测试用例、整理文档结构）非常有价值。
+
+<RealStep
+  id="background-agent-tried"
+>
+  **启动 Background Agent：**
+
+  在 Cursor 里，通过 `Cmd+Shift+P` 搜索 **"Background Agent"**，或在侧边栏找到对应入口（不同版本界面可能略有差异）。
+
+  给 Background Agent 一个需要一定时间的任务：
+
+  ```
+  帮我在 ~/accounting-learner/scripts/ 目录下，
+  为每个 Python 文件生成一个对应的 _test.py 测试文件，
+  每个测试文件包含至少两个简单的断言测试
+  ```
+
+  提交任务后，**你不需要盯着它**。Background Agent 会在后台执行；你可以：
+
+  - 切换到其他 App 继续工作
+  - 5-10 分钟后回来查看进度和结果
+  - 在 Cursor 侧边栏的 Background Agent 列表里查看状态
+
+  <Callout type="insight" title="异步任务，可以放手让它跑">
+  把 Background Agent 想象成「把任务甩给一个认真的实习生，然后去喝杯茶，回来看结果」。
+
+  它和 Claude Code / Codex 的区别不是聪明程度——而是**工作节奏**：  
+  同步工具适合你要盯着、随时介入的任务；  
+  Background Agent 适合你可以放手、等结果的任务。
+  </Callout>
+
+  <Callout type="warn" title="Background Agent 需要 Cursor Pro">
+  如果你的账号没有 Pro 订阅，Background Agent 可能不可用。此时直接点「我跑完了」——本步骤的概念你已经通过阅读掌握了，工具可以以后再用。
+  </Callout>
+
+  提交任务后（或阅读完概念），点「我跑完了」。
+</RealStep>
+
+---
+
+## 7. Part IV 综合：三工具该怎么选？
+
+你现在有了三位 AI 同事。这是 **Part IV 的核心收获**：知道什么时候该叫哪位出马。
+
+<RealStep
+  id="tool-choice-understood"
+>
+  仔细读完下面的三工具对比表，对照自己过去几章的操作体验，形成你自己的判断框架。
+
+  ---
+
+  ### 三工具对比：Claude Code vs Codex CLI vs Cursor
+
+  | 维度 | Claude Code | Codex CLI | Cursor |
+  |---|---|---|---|
+  | **界面** | 终端（纯文字） | 终端（纯文字） | GUI + 终端 |
+  | **工作节奏** | 同步，喜欢先确认 | 同步，直接动手 | 同步 or 异步（Background Agent） |
+  | **多文件处理** | 可以，但逐个确认 | 可以，批量自动 | Composer：图形化多文件审阅 |
+  | **上下文引用** | 手动粘贴或 SKILL.md | 手动描述 | @ 引用，精准一键 |
+  | **异步任务** | 不支持 | 不支持 | Background Agent（放手等结果）|
+  | **适合场景** | 探索性对话、边想边做 | 明确的批量文件操作 | 多文件项目编辑、异步长任务 |
+  | **订阅要求** | Anthropic（Max 等） | OpenAI（ChatGPT Plus+） | Cursor Pro（$20/月） |
+
+  ---
+
+  ### 实际工作里的选择逻辑
+
+  **用 Claude Code，当你：**
+  - 还不确定任务的方向，需要边聊边想
+  - 任务比较敏感，想在每一步确认后再继续
+  - 在终端里工作，不想切换到 GUI
+
+  **用 Codex CLI，当你：**
+  - 任务非常明确（比如：把 data/raw/ 里所有 CSV 分类）
+  - 需要批量处理大量文件，不想逐个确认
+  - 提前做了 Git 快照，可以放心让它自动跑
+
+  **用 Cursor，当你：**
+  - 需要同时修改多个文件，并想逐个文件审阅改动
+  - 想用 @ 快速给 AI 提供精准的文件上下文，省掉解释步骤
+  - 任务耗时较长，可以交给 Background Agent 异步处理，自己去做别的
+
+  ---
+
+  <Callout type="insight" title="没有「最好的工具」——只有「合适的工具」">
+  这三个工具背后的 AI 模型能力相近，但**工作流设计完全不同**。
+
+  一个有经验的 AI 辅助会计工作者，会根据任务性质在三者之间灵活切换——就像一个有经验的厨师，不会只用一把刀切所有食材。
+
+  你现在已经有了全套工具箱。接下来的第 14、15 章，我们用一个完整的毕业项目来把这些工具串起来。
+  </Callout>
+
+  读完对比表、形成了自己的判断框架之后，点「我跑完了」。
+</RealStep>
+
+---
+
+## 本章回顾
+
+| 里程碑 | 意义 |
+|---|---|
+| 安装 Cursor + 配置 CLI | 第三个 AI 工具进入工具箱 |
+| 完成 Cursor 登录 | Cursor 知道你是谁，可以授权使用 |
+| 体验 Composer 多文件编辑 | 一次 prompt 跨多文件修改，并可以逐个文件审阅 |
+| 体验 @ 引用 | 精准锁定文件上下文，告别每次都要解释项目结构 |
+| 启动 Background Agent | 异步任务：交代完任务去喝茶，等结果 |
+| 读完三工具对比 | 建立了 Claude Code / Codex / Cursor 的选择判断框架 |
+
+---
+
+<QuizRunner src="./quiz.yaml" />
