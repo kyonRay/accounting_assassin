@@ -31,7 +31,7 @@ export const check: CheckerFn = async (env) => {
   // Build directional first-attempt hint
   const missing: string[] = [];
   if (!conceptUnderstood)
-    missing.push("阅读「Skill 是什么」开篇，理解 Skill 说明书与一次性脚本的区别");
+    missing.push("先回到本章开篇,读完「Skill 是什么」一节,理解 Skill 说明书与一次性脚本的区别。");
   if (!skillFileWritten)
     missing.push(
       "创建 ~/.claude/skills/organize-invoices/SKILL.md（organize-invoices skill 文件）",

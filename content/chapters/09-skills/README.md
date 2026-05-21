@@ -17,7 +17,7 @@
 
 ### 必须出现的字面量
 
-- **SKILL.md 路径**：课文正文必须出现 `~/.claude/skills/organize-invoices/SKILL.md`（checker 提示语和 README 里都引用了这个路径）。
+- **SKILL.md 路径**：课文正文必须出现完整路径 `~/.claude/skills/organize-invoices/SKILL.md`（test.ts 断言此完整路径字符串）。
 - **`organize-invoices`**：Skill 名称，必须在 lesson.mdx 里出现（test.ts 断言此字符串）。
 
 ### 本章没有 QuizRunner
@@ -57,5 +57,5 @@ Ch 09 是纯真实环境章节，学习者使用自己的真实发票。不需�
 
 ```bash
 pnpm test:chapters content/chapters/09-skills/
-# 应该 10 个测试全过
+# 应该 11 个测试全过
 ```

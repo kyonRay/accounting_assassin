@@ -139,7 +139,7 @@ Claude Code 会自动扫描 `~/.claude/skills/` 目录下所有子目录里的 `
   id="skill-invoked-by-claude"
   command="claude"
 >
-  开一个**全新的 Claude 会话**（不要用 `--continue`），然后用自然语言触发 Skill。开一个新会话是为了让 Claude 重新扫描 `~/.claude/skills/` 目录，发现刚才新建的 SKILL.md。
+  开一个**全新的 Claude 会话**（不要用 `--continue`），然后用自然语言触发 Skill。为什么开新会话：让 Claude 用 SKILL.md 说明书从干净的起点开始，而不是继续上次的对话上下文 —— 上次会话可能没读过你新写的 SKILL.md。
 
   在终端里运行 `claude`，然后说：
 

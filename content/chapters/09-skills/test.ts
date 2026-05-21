@@ -25,7 +25,7 @@ describe("Ch 09 · Skills (一句话搞定重复工作)", () => {
     expect(result.showAnswerButton).toBe(false);
   });
 
-  it("缺少 skill-concept-understood → 第一次提示含 Skill/概念 关键词", async () => {
+  it("缺少 skill-concept-understood → 第一次提示含 开篇/一次性脚本 关键词", async () => {
     const fs = createVirtualFs();
     await fs.write(".progress/skill-file-written", "done");
     await fs.write(".progress/skill-invoked-by-claude", "done");
@@ -33,7 +33,7 @@ describe("Ch 09 · Skills (一句话搞定重复工作)", () => {
 
     const result = await runChecker(check, { mode: "real", fs }, 1);
     expect(result.passed).toBe(false);
-    expect(result.hint).toMatch(/Skill|概念|说明书|skill-concept/i);
+    expect(result.hint).toMatch(/开篇|一次性脚本/);
   });
 
   it("缺少 skill-file-written → 第一次提示含 SKILL.md/organize-invoices 关键词", async () => {
@@ -119,6 +119,18 @@ describe("Ch 09 · lesson.mdx", () => {
       "utf-8",
     );
     expect(text).toMatch(/organize-invoices/);
+  });
+
+  it("lesson.mdx 包含完整路径 ~/.claude/skills/organize-invoices/SKILL.md", async () => {
+    const nodeFs = await import("node:fs/promises");
+    const nodePath = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const dir = nodePath.dirname(fileURLToPath(import.meta.url));
+    const text = await nodeFs.readFile(
+      nodePath.resolve(dir, "lesson.mdx"),
+      "utf-8",
+    );
+    expect(text).toMatch(/~\/\.claude\/skills\/organize-invoices\/SKILL\.md/);
   });
 
   it("lesson.mdx 不含 QuizRunner（Ch 09 无测验）", async () => {
