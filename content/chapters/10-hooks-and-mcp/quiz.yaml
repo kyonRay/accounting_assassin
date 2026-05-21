@@ -1,0 +1,98 @@
+title: "检查你对第 10 章的理解"
+description: "5 道题 · 大约 4 分钟 · 答错也没关系，有解析"
+questions:
+  - id: q1
+    type: single-choice
+    stem: |
+      你想让 Claude 每次编辑代码文件后自动把文件名记录到日志里。这应该用什么？
+    options:
+      - id: A
+        text: "Skill——写一份 SKILL.md 说明书，描述记录文件名的步骤"
+        feedback: "Skill 用于多步重复工作流，需要你主动触发。这里你想要的是「每次编辑就自动跑」——那是 Hook 的职责。"
+      - id: B
+        text: "Hook——在 settings.local.json 里配置 PostToolUse 触发 shell 命令"
+        feedback: "完全正确！PostToolUse hook 加 matcher: \"Edit\"，每次 Claude 用 Edit 工具后就自动跑你的 shell 命令。"
+        correct: true
+      - id: C
+        text: "MCP——安装一个文件日志 MCP 服务器"
+        feedback: "MCP 是给 Claude 加新工具，不是在特定事件时自动触发。记录日志这件事用 Hook 更直接。"
+      - id: D
+        text: "Python 脚本——写一个 watch.py 轮询文件变化"
+        feedback: "这样做可以，但需要你自己维护一个后台进程。用 Hook 更简洁，Claude Code 会帮你管理触发时机。"
+
+  - id: q2
+    type: single-choice
+    stem: |
+      下面哪个场景不适合用 Hook？
+    options:
+      - id: A
+        text: "每次 Claude 编辑完代码文件后，自动运行一次 eslint 检查"
+        feedback: "这非常适合 Hook——PostToolUse + matcher: \"Edit\"，每次编辑后自动触发 lint。"
+      - id: B
+        text: "只做一次的统计：统计本月发票里金额超过 1000 元的有多少张"
+        feedback: "正确。一次性任务直接问 Claude 就好，不值得配置 Hook。Hook 是给「每次某事发生就要做」的机械动作用的，不是一次性任务。"
+        correct: true
+      - id: C
+        text: "每次 Claude 提交 Git commit 前，自动跑 tsc --noEmit 检查类型"
+        feedback: "这很适合 Hook——PreToolUse + matcher: \"Bash\" 加上对 git commit 命令的判断，可以做到 pre-commit 检查。"
+      - id: D
+        text: "每次 Claude 编辑完文件后，往日志文件追加写一行时间戳"
+        feedback: "这正是本章教的第一个 Hook 示例，非常适合 Hook。"
+
+  - id: q3
+    type: multiple-choice
+    stem: |
+      MCP 服务器有哪些特征？（可多选）
+    options:
+      - id: A
+        text: "它是一个长期运行的外部进程，Claude Code 在启动会话时会连接它"
+        feedback: "正确。MCP 服务器不是一次性命令，而是一个持久运行的进程（比如用 uvx 启动的 Python 进程）。"
+        correct: true
+      - id: B
+        text: "它把外部能力以「工具」的形式暴露给 Claude，Claude 可以主动调用"
+        feedback: "正确。Claude 把 MCP 服务器提供的功能当成内置工具一样调用，比如 query_database、send_message。"
+        correct: true
+      - id: C
+        text: "它是写在 SKILL.md 里的说明文字，Claude 通过语义匹配来调用"
+        feedback: "不对。那是 Skill 的工作方式。MCP 是一个真正运行的进程，不是 Markdown 文件。"
+      - id: D
+        text: "它在每次 Claude 做完特定操作后被自动触发，运行一段 shell"
+        feedback: "不对。那是 Hook 的工作方式。MCP 服务器不是由事件触发的，而是由 Claude 主动调用它的工具接口。"
+
+  - id: q4
+    type: single-choice
+    stem: |
+      你想让 Claude 每个月自动按相同步骤整理银行流水（导出 CSV → 按类目分组 → 输出报表）。最合适的方式是什么？
+    options:
+      - id: A
+        text: "Hook——配置一个每月初触发的 PostToolUse 命令"
+        feedback: "Hook 是在 Claude 做某操作时自动跑 shell，不是用来描述多步工作流逻辑的。这里你需要的是让 Claude 明白「整理银行流水」对应哪套步骤。"
+      - id: B
+        text: "Skill——写一份 SKILL.md 说明书，描述整理银行流水的完整步骤"
+        feedback: "完全正确！重复的、多步的、有固定流程的任务，就是 Skill 的适用场景。下次你说「帮我整理本月流水」，Claude 会自动找到说明书来做。"
+        correct: true
+      - id: C
+        text: "MCP——安装一个 CSV 处理 MCP，让 Claude 直接操作 CSV"
+        feedback: "如果这件事只是给 Claude 看 CSV 内容，MCP 可能有用。但描述「怎么做这件事」（步骤、格式、注意事项）是 Skill 的职责，不是 MCP 的。"
+      - id: D
+        text: "每次都手动告诉 Claude：「步骤是这样的，格式是那样的……」"
+        feedback: "这样可以，但很麻烦，也容易每次说得不一样。Skill 就是为了解决「每次都要重新解释」这个痛点而存在的。"
+
+  - id: q5
+    type: single-choice
+    stem: |
+      你的 PostToolUse hook 命令是 `rm -rf ~/accounting-learner/outputs/*`。这个 hook 有什么问题？
+    options:
+      - id: A
+        text: "没问题，每次编辑后清空输出目录正好保持干净"
+        feedback: "这个 hook 会在 Claude 每次编辑任何文件后都跑一遍，包括正在生成报表的时候——会把还没看完的报表全删掉。非常危险。"
+      - id: B
+        text: "有问题：它在每次编辑后都会删除输出文件，包括你刚让 Claude 生成的报表"
+        feedback: "完全正确。Hook 会在每一次触发时无条件运行，rm -rf 这类破坏性命令放在 hook 里极其危险。第一个 hook 应该是只追加写的日志，不应该是删除文件。"
+        correct: true
+      - id: C
+        text: "有问题，但只是因为路径用了 ~ 而不是绝对路径"
+        feedback: "路径写法不是核心问题。这个 hook 最大的问题是它的操作是破坏性的、不可逆的，而且会在每次编辑后自动触发。"
+      - id: D
+        text: "有问题，hook 命令里不能用 rm 命令"
+        feedback: "技术上没有这个限制，rm 命令本身在 hook 里是合法的。问题在于这个具体命令是破坏性的，会在每次编辑后删掉所有输出文件。"
