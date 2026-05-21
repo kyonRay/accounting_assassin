@@ -1,13 +1,18 @@
 import { create } from "zustand";
 import { runHealthCheck, type HealthSnapshot } from "./health-check";
 
-interface HealthStoreState {
+/** Public fields exposed to consumers of useHealthStore / useRealEnv. */
+export interface HealthStorePublic {
   snapshot: HealthSnapshot | null;
   loading: boolean;
   error: Error | null;
+  refresh: () => Promise<void>;
+}
+
+/** Full internal state — `_inFlight` is a private impl detail, not for consumers. */
+interface HealthStoreState extends HealthStorePublic {
   /** Internal dedup handle — not part of the public API. Resets with setState. */
   _inFlight: Promise<void> | null;
-  refresh: () => Promise<void>;
 }
 
 export const useHealthStore = create<HealthStoreState>((set, get) => ({

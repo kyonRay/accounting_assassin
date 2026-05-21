@@ -246,4 +246,88 @@ describe("RealStep", () => {
     expect(screen.getByRole("button", { name: "检查环境中…" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "检查环境中…" })).toBeDisabled();
   });
+
+  it("shows 重试 banner and disables 我跑完了 when expectsCli is set, snapshot is null, and error is set", async () => {
+    mockRunHealthCheck.mockRejectedValue(new Error("IPC unavailable"));
+
+    const { Wrapper } = makeWrapper();
+    render(
+      <Wrapper>
+        <RealStep id="error-step" expectsCli="Python3">
+          运行 Python 脚本
+        </RealStep>
+      </Wrapper>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/检查你电脑上的工具时出错/)).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "我跑完了" })).toBeDisabled();
+  });
+
+  it("clicking 重试 calls refresh (runHealthCheck again)", async () => {
+    mockRunHealthCheck.mockRejectedValueOnce(new Error("IPC unavailable"));
+
+    const { Wrapper } = makeWrapper();
+    render(
+      <Wrapper>
+        <RealStep id="retry-step" expectsCli="Python3">
+          运行 Python 脚本
+        </RealStep>
+      </Wrapper>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+    });
+
+    // Set up a successful resolution for the retry call
+    mockRunHealthCheck.mockResolvedValueOnce(FULL_SNAPSHOT);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    });
+
+    // refresh() calls runHealthCheck — it should have been called twice total
+    expect(mockRunHealthCheck).toHaveBeenCalledTimes(2);
+  });
+
+  it("error banner disappears and 我跑完了 enables after successful refresh", async () => {
+    mockRunHealthCheck.mockRejectedValueOnce(new Error("IPC unavailable"));
+
+    const { Wrapper } = makeWrapper();
+    render(
+      <Wrapper>
+        <RealStep id="recover-step" expectsCli="Python3">
+          运行 Python 脚本
+        </RealStep>
+      </Wrapper>,
+    );
+
+    // Wait for the error state
+    await waitFor(() => {
+      expect(screen.getByText(/检查你电脑上的工具时出错/)).toBeInTheDocument();
+    });
+
+    // Snapshot with Python3 present so the button unlocks after retry
+    const snapshotWithPython: HealthSnapshot = {
+      present: [{ cmd: "Python3", version: "3.x", path: "/usr/bin/python3" }],
+      missing: ["Claude", "Codex", "Cursor", "Brew", "Git"],
+    };
+    mockRunHealthCheck.mockResolvedValueOnce(snapshotWithPython);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    });
+
+    // After successful refresh the error banner should be gone
+    await waitFor(() => {
+      expect(screen.queryByText(/检查你电脑上的工具时出错/)).toBeNull();
+    });
+
+    // And 我跑完了 should now be enabled (Python3 is present in the snapshot)
+    expect(screen.getByRole("button", { name: "我跑完了" })).toBeEnabled();
+  });
 });

@@ -30,18 +30,20 @@ export function RealStep({
   const [done, setDone] = useState(false);
   const [copied, setCopied] = useState(false);
   const runtime = useOptionalChapterRunner();
-  const { snapshot } = useRealEnv();
+  const { snapshot, error, refresh } = useRealEnv();
 
   // Resolve CLI gate state:
-  // - null snapshot → still loading
-  // - expectsCli in missing → blocked
-  // - otherwise → allowed
+  // - null snapshot + no error → still loading
+  // - null snapshot + error    → health check failed (show retry banner)
+  // - expectsCli in missing    → blocked (show downgrade banner)
+  // - otherwise                → allowed
   const cliMissing =
     expectsCli !== undefined &&
     snapshot !== null &&
     snapshot.missing.includes(expectsCli);
 
-  const stillLoading = expectsCli !== undefined && snapshot === null;
+  const stillLoading = expectsCli !== undefined && snapshot === null && !error;
+  const healthCheckFailed = expectsCli !== undefined && snapshot === null && error !== null;
 
   async function handleComplete() {
     if (runtime) {
@@ -62,7 +64,7 @@ export function RealStep({
     }
   }
 
-  const buttonDisabled = done || cliMissing || stillLoading;
+  const buttonDisabled = done || cliMissing || stillLoading || healthCheckFailed;
 
   return (
     <div className="border border-realenv/30 rounded-lg p-4 my-4 bg-realenv/5">
@@ -88,6 +90,19 @@ export function RealStep({
           ⚠️ 我没在你的电脑上找到{" "}
           <code className="font-mono">{expectsCli}</code>
           ，请先回到第 5 章安装
+        </div>
+      )}
+
+      {healthCheckFailed && (
+        <div className="mt-3 text-xs text-realenv bg-realenv/10 border border-realenv/30 rounded p-2 flex items-center justify-between gap-3">
+          <span>⚠️ 检查你电脑上的工具时出错。</span>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="shrink-0 bg-realenv text-white text-xs font-medium px-3 py-1 rounded hover:bg-realenv/90 transition-colors"
+          >
+            重试
+          </button>
         </div>
       )}
 

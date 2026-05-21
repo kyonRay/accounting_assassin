@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useProgress, type AppMode } from "@/modules/Progress";
 import { useHealthStore } from "./healthStore";
 import type { HealthSnapshot } from "./health-check";
@@ -13,10 +14,14 @@ export interface RealEnvState {
 }
 
 export function useRealEnv(): RealEnvState {
-  const snapshot = useHealthStore((s) => s.snapshot);
-  const loading = useHealthStore((s) => s.loading);
-  const error = useHealthStore((s) => s.error);
-  const refresh = useHealthStore((s) => s.refresh);
+  const { snapshot, loading, error, refresh } = useHealthStore(
+    useShallow((s) => ({
+      snapshot: s.snapshot,
+      loading: s.loading,
+      error: s.error,
+      refresh: s.refresh,
+    })),
+  );
   const mode = useProgress((s) => s.mode);
 
   useEffect(() => {
