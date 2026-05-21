@@ -24,6 +24,7 @@ export interface ProgressState {
   completeOnboarding: () => void;
   setCurrentChapter: (slug: string) => void;
   markChapterCompleted: (slug: string) => void;
+  setMode: (mode: AppMode) => void;
   resetProgress: () => void; // double-confirm at UI layer, not here
 }
 
@@ -50,6 +51,7 @@ export const useProgress = create<ProgressState>()(
             },
           },
         })),
+      setMode: (mode) => set({ mode }),
       resetProgress: () => set(INITIAL_STATE),
     }),
     {
