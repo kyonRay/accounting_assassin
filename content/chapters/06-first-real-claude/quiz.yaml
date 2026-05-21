@@ -1,0 +1,98 @@
+title: "检查你对第 6 章的理解"
+description: "5 道题 · 大约 3 分钟 · 答错也没关系"
+questions:
+  - id: q1
+    type: single-choice
+    stem: |
+      你在终端里运行 claude --version，看到的输出应该是什么格式？
+    options:
+      - id: A
+        text: "一个网页链接，告诉你去哪里下载"
+        feedback: "--version 输出的是版本号，不是网页链接。如果看到的是 command not found，说明还没装好。"
+      - id: B
+        text: "类似 claude/1.0.42 darwin-arm64 node-v22.x.x 这样的版本字符串"
+        feedback: "完全正确！这就是 Claude Code CLI 的版本输出格式：工具名/版本号 + 系统信息。"
+        correct: true
+      - id: C
+        text: "一段很长的 JSON 配置"
+        feedback: "--version 只输出一行简短的版本字符串，不是 JSON。"
+      - id: D
+        text: "空白，什么也不显示"
+        feedback: "如果什么也不显示，说明安装可能有问题。正常情况下会输出版本号。"
+
+  - id: q2
+    type: multiple-choice
+    stem: |
+      第一次运行 claude 命令时，它需要连网络是因为（可多选）？
+    options:
+      - id: A
+        text: "要下载 Claude 模型文件到本地"
+        feedback: "不是。Claude 的模型运行在 Anthropic 的服务器上，不会下载到本地。"
+      - id: B
+        text: "需要通过 Anthropic 服务器验证你的账号（认证）"
+        feedback: "正确。第一次运行会打开浏览器进行 OAuth 认证，这需要网络。"
+        correct: true
+      - id: C
+        text: "你说的每句话都要发送给 Anthropic 的服务器，让 Claude 来回答"
+        feedback: "正确。Claude 的智能在云端，每次对话都是网络请求，不是本地运算。"
+        correct: true
+      - id: D
+        text: "只是为了检查更新，实际对话可以离线"
+        feedback: "不对。对话必须联网，因为 LLM 推理是在 Anthropic 服务器上完成的。"
+
+  - id: q3
+    type: single-choice
+    stem: |
+      Claude Code（终端里的 claude 命令）和 Claude 网页版（claude.ai）最本质的区别是什么？
+    options:
+      - id: A
+        text: "Claude Code 更聪明，网页版是旧版本"
+        feedback: "两者背后可能是同一个模型。区别不在于模型智力，而在于能力边界。"
+      - id: B
+        text: "Claude Code 能直接读你电脑上的文件和跑代码，网页版不行"
+        feedback: "完全正确！这就是第 1 章说的'装备'的差别。Claude Code 有眼睛和手，网页版没有。"
+        correct: true
+      - id: C
+        text: "Claude Code 要付费，网页版免费"
+        feedback: "付费情况和这个差别无关。本质区别是工具调用能力（能不能碰你的文件）。"
+      - id: D
+        text: "Claude Code 只能用英文，网页版支持中文"
+        feedback: "Claude Code 完全支持中文对话，这不是区别。"
+
+  - id: q4
+    type: single-choice
+    stem: |
+      ~/.claude/ 这个目录里存的是什么？
+    options:
+      - id: A
+        text: "你所有的发票和财务数据"
+        feedback: "不是。财务数据存在 ~/accounting-learner/，~/.claude/ 只存工具的配置和凭证。"
+      - id: B
+        text: "Claude Code 工具的配置文件和认证凭证"
+        feedback: "正确。~/.claude/ 是 Claude Code 的个人配置目录，存放登录状态、设置、会话记录等。"
+        correct: true
+      - id: C
+        text: "Python 脚本和 CSV 文件"
+        feedback: "Python 脚本和 CSV 文件应该放在 ~/accounting-learner/，不是 ~/.claude/。"
+      - id: D
+        text: "Homebrew 安装的工具列表"
+        feedback: "Homebrew 相关文件在 /opt/homebrew/，和 ~/.claude/ 无关。"
+
+  - id: q5
+    type: single-choice
+    stem: |
+      装完 Claude Code 之后，新开了一个终端窗口，输入 claude 显示 command not found。最可能的原因和解决方法是什么？
+    options:
+      - id: A
+        text: "Claude Code 没有安装成功，需要重新安装"
+        feedback: "可能不是安装问题。更常见的原因是 Shell 的 PATH 还没有更新，先试试其他方法。"
+      - id: B
+        text: "Shell 还不知道 claude 命令在哪里——重启终端或运行 source ~/.zprofile 刷新 PATH"
+        feedback: "完全正确！新安装的工具需要 Shell 重新加载配置文件才能识别，重启终端或 source 一下通常就能解决。"
+        correct: true
+      - id: C
+        text: "需要用管理员权限运行，在命令前加 sudo"
+        feedback: "不需要 sudo。这是 PATH 问题，加 sudo 也没用。"
+      - id: D
+        text: "Claude Code 只能在 ~/accounting-learner/ 目录里使用"
+        feedback: "claude 命令在任何目录下都能用，不局限于某个目录。"
