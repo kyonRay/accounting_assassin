@@ -1,7 +1,16 @@
+import { useProgress } from "@/modules/Progress";
+import { WelcomeFlow } from "@/components/WelcomeFlow";
 import { LessonViewer } from "@/modules/LessonViewer";
 import { Terminal, type TerminalApi } from "@/modules/Sandbox";
 
 export default function App() {
+  const hasCompletedOnboarding = useProgress((s) => s.hasCompletedOnboarding);
+  const completeOnboarding = useProgress((s) => s.completeOnboarding);
+
+  if (!hasCompletedOnboarding) {
+    return <WelcomeFlow onComplete={completeOnboarding} />;
+  }
+
   return (
     <div className="h-screen w-screen grid grid-cols-[260px_1fr_400px] grid-rows-[1fr_32px]">
       <aside className="row-span-1 bg-cream/60 border-r border-graphite/10 p-4">
