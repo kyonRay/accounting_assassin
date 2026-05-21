@@ -2,6 +2,7 @@ import { MDXProvider } from "@mdx-js/react";
 import { mdxComponents } from "./mdx-components";
 import { useChapter } from "./useChapter";
 import { mapErrorToFriendly } from "./error-messages";
+import { ChapterContext } from "./ChapterContext";
 
 interface Props { slug: string; }
 
@@ -24,10 +25,12 @@ export function LessonViewer({ slug }: Props) {
   }
   if (!Lesson) return <div className="text-muted">正在加载...</div>;
   return (
-    <MDXProvider components={mdxComponents}>
-      <article className="prose prose-zinc max-w-3xl">
-        <Lesson />
-      </article>
-    </MDXProvider>
+    <ChapterContext.Provider value={{ slug }}>
+      <MDXProvider components={mdxComponents}>
+        <article className="prose prose-zinc max-w-3xl">
+          <Lesson />
+        </article>
+      </MDXProvider>
+    </ChapterContext.Provider>
   );
 }

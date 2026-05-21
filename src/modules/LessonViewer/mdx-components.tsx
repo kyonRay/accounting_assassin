@@ -2,6 +2,7 @@ import type { MDXComponents } from "mdx/types";
 import { Callout } from "./components/Callout";
 import { SandboxStep } from "./components/SandboxStep";
 import { ComparisonDemo } from "./components/ComparisonDemo";
+import { MdxQuizRunner } from "../Quiz/MdxQuizRunner";
 
 export const mdxComponents: MDXComponents = {
   h1: (props) => <h1 className="text-3xl font-bold mb-4" {...props} />,
@@ -14,4 +15,5 @@ export const mdxComponents: MDXComponents = {
   Callout: Callout as never,
   SandboxStep: SandboxStep as never,
   ComparisonDemo: ComparisonDemo as never,
+  QuizRunner: MdxQuizRunner as never,
 };

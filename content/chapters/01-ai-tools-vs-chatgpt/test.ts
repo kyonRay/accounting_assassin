@@ -60,6 +60,18 @@ describe("Ch 01 · AI 工具 ≠ ChatGPT 2.0", () => {
   });
 });
 
+// lesson.mdx source check
+describe("Ch 01 · lesson.mdx", () => {
+  it("lesson.mdx renders with QuizRunner block at the end", async () => {
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const dir = path.dirname(fileURLToPath(import.meta.url));
+    const text = await fs.readFile(path.resolve(dir, "lesson.mdx"), "utf-8");
+    expect(text).toMatch(/<QuizRunner\s+src=["']\.\/quiz\.yaml["']/);
+  });
+});
+
 // Quiz YAML validation
 describe("Ch 01 · quiz.yaml", () => {
   it("每道题至少有一个 correct option", async () => {
