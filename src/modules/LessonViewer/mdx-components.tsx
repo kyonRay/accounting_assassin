@@ -3,6 +3,7 @@ import { Callout } from "./components/Callout";
 import { SandboxStep } from "./components/SandboxStep";
 import { ComparisonDemo } from "./components/ComparisonDemo";
 import { MdxQuizRunner } from "../Quiz/MdxQuizRunner";
+import { RealStep } from "@/components/RealStep";
 
 export const mdxComponents: MDXComponents = {
   // Block elements
@@ -44,4 +45,5 @@ export const mdxComponents: MDXComponents = {
   SandboxStep: SandboxStep as never,
   ComparisonDemo: ComparisonDemo as never,
   QuizRunner: MdxQuizRunner as never,
+  RealStep: RealStep as never,
 };
