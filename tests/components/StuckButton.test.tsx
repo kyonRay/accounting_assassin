@@ -225,7 +225,31 @@ describe("StuckButton — close modal", () => {
   });
 });
 
-// ─── Test 6: allowlist check — formatter never includes file content ──────────
+// ─── Test 6: error state when collectDiagnostics() rejects ───────────────────
+
+describe("StuckButton — error state", () => {
+  it("shows error state when collectDiagnostics() rejects", async () => {
+    mockCollectDiagnostics.mockRejectedValueOnce(new Error("Tauri IPC unavailable"));
+
+    render(<StuckButton />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("stuck-button"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/收集信息时遇到了问题/)).toBeInTheDocument();
+    });
+
+    // The raw English error must be surfaced so a developer can read it
+    expect(screen.getByText(/Tauri IPC unavailable/i)).toBeInTheDocument();
+
+    // The ready state (markdown preview) must NOT appear
+    expect(screen.queryByTestId("stuck-markdown-preview")).not.toBeInTheDocument();
+  });
+});
+
+// ─── Test 7: allowlist check — formatter never includes file content ──────────
 
 describe("formatDiagnosticMarkdown — allowlist", () => {
   it("does not include file content from workspaceTopLevel entries", () => {

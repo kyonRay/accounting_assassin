@@ -417,19 +417,43 @@ mod tests {
         });
     }
 
+    // ── RAII helper: restores HOME on drop (panic-safe) ──────────────────────
+
+    struct HomeGuard(Option<String>);
+    impl Drop for HomeGuard {
+        fn drop(&mut self) {
+            // SAFETY: HOME_LOCK is held by the calling test (single-threaded writes).
+            unsafe {
+                match &self.0 {
+                    Some(h) => std::env::set_var("HOME", h),
+                    None => std::env::remove_var("HOME"),
+                }
+            }
+        }
+    }
+
+    /// Override $HOME to `new` and return a guard that restores the old value on drop.
+    /// The caller must hold `HOME_LOCK` for the duration of the guard's lifetime.
+    fn override_home(new: &std::path::Path) -> HomeGuard {
+        let old = std::env::var("HOME").ok();
+        // SAFETY: HOME_LOCK is held by the calling test.
+        unsafe { std::env::set_var("HOME", new) };
+        HomeGuard(old)
+    }
+
     // ── Test 4: EntryKind correctly distinguishes files from directories ──────
 
     #[test]
     fn entry_kind_file_vs_directory() {
-        let _guard = HOME_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        let _lock = HOME_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let tmp = TempDir::new().unwrap();
         let ws = tmp.path().join("accounting-learner");
         fs::create_dir_all(&ws).unwrap();
         fs::write(ws.join("a.txt"), "hello").unwrap();
         fs::create_dir_all(ws.join("subdir")).unwrap();
 
-        let old = std::env::var("HOME").ok();
-        unsafe { std::env::set_var("HOME", tmp.path()) };
+        // _home restores HOME on drop — panic-safe even if an assert fires below.
+        let _home = override_home(tmp.path());
 
         let (exists, entries) = list_workspace_top_level();
         assert!(exists);
@@ -441,13 +465,6 @@ mod tests {
         let dir_entry = entries.iter().find(|e| e.name == "subdir").unwrap();
         assert_eq!(dir_entry.kind, EntryKind::Directory);
         assert!(dir_entry.size_bytes.is_none());
-
-        unsafe {
-            match old {
-                Some(h) => std::env::set_var("HOME", h),
-                None => std::env::remove_var("HOME"),
-            }
-        }
     }
 
     // ── Test 5: report JSON does not contain any "path" field ────────────────
