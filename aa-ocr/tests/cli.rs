@@ -80,6 +80,52 @@ fn text_layer_pdf_emits_valid_json() {
     }
 }
 
+/// Verify that a scanned PDF (image-only, no text layer) falls back to Vision OCR
+/// and produces valid JSON with non-empty raw_text.
+///
+/// `scanned_invoice.pdf` is a PDF where the invoice text has been rasterized to an
+/// image (no text layer).  With the Vision fallback (spec § 5.3.1.1 b), Vision
+/// should recognize the rasterized Chinese text and return exit 0 (all 4 fields)
+/// or exit 4 (partial).  Exit 3 (no text at all) is a failure.
+///
+/// Only runs on macOS because Vision OCR is macOS-only.
+#[cfg(target_os = "macos")]
+#[test]
+fn scanned_invoice_pdf_uses_vision_fallback() {
+    let pdf = fixtures_dir().join("scanned_invoice.pdf");
+    if !pdf.exists() {
+        eprintln!("SKIP: scanned_invoice.pdf fixture not found; regenerate per tests/fixtures/README.md");
+        return;
+    }
+    let output = aa_ocr()
+        .arg(pdf.to_str().unwrap())
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: serde_json::Value = serde_json::from_str(&stdout)
+        .expect("stdout must be valid JSON");
+
+    // Must not be exit 3 (no text) — Vision should have recognized something.
+    assert_ne!(
+        output.status.code(),
+        Some(3),
+        "scanned_invoice.pdf should not produce exit 3; Vision fallback must recognize text. stdout: {}",
+        stdout
+    );
+
+    // raw_text must be non-empty (Vision extracted text from the rasterized page).
+    assert!(
+        !parsed["raw_text"].as_str().unwrap_or("").is_empty(),
+        "raw_text must be non-empty for scanned_invoice.pdf"
+    );
+
+    // All four field keys must be present.
+    for key in &["date", "amount", "vendor", "tax_id"] {
+        assert!(parsed["fields"][key].is_object(), "missing field: {}", key);
+    }
+}
+
 /// Verify exit code 0 for the Chinese invoice PNG (all 4 fields extracted).
 /// Only runs on macOS because Vision OCR is macOS-only.
 #[cfg(target_os = "macos")]

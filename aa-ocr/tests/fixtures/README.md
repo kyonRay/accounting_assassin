@@ -14,8 +14,14 @@ Expected text: contains "TEST INVOICE".
 ### scanned.pdf
 
 Minimal PDF with only a white-rectangle drawing and **no text layer**, created via PyMuPDF.  
-Simulates a scanned / image-only invoice.  
-Expected: `pdf_extract::extract_text` returns `Ok(None)`.
+Simulates a scanned / image-only invoice (blank page — no visible content).  
+Expected: `pdf_extract::extract_text` returns `Ok(None)`; Vision OCR also returns empty text → exit 3.
+
+### scanned_invoice.pdf
+
+PDF where a realistic Chinese invoice (with 4 extractable fields) has been **rasterized to a PNG image** and embedded into a PDF page — no text layer.  
+Simulates a real scanned invoice.  
+Expected: `pdf_extract::extract_text` returns `Ok(None)`; Vision OCR fallback (`vision::ocr_pdf_via_vision`) recognizes the rasterized text → exit 0 (all 4 fields) or exit 4 (partial).
 
 ### chinese_invoice.png
 
@@ -70,5 +76,43 @@ for x,y,text,size in lines:
 pix = page.get_pixmap(matrix=fitz.Matrix(2,2))
 pix.save('aa-ocr/tests/fixtures/chinese_invoice.png')
 print('Done')
+EOF
+```
+
+To regenerate only `scanned_invoice.pdf` (rasterized invoice with no text layer):
+
+```sh
+# From repo root — requires Python 3 + PyMuPDF:
+# pip install PyMuPDF
+python3 - <<'EOF'
+import fitz, os
+
+font_path = '/System/Library/Fonts/STHeiti Medium.ttc'
+
+# Step 1: render invoice text to a pixmap (acts as the "scanner camera")
+doc_src = fitz.open()
+page_src = doc_src.new_page(width=600, height=800)
+lines = [
+    (50, 750, '增值税专用发票', 18),
+    (50, 710, '销售方名称：上海某某商贸有限公司', 13),
+    (50, 685, '纳税人识别号：91310000MA1GH5XF2B', 13),
+    (50, 660, '开票日期：2026年04月15日', 13),
+    (50, 635, '合计：¥1,234.50', 13),
+    (50, 610, '税率：13%', 13),
+]
+for x, y, text, size in lines:
+    if os.path.exists(font_path):
+        page_src.insert_text((x, y), text, fontsize=size, fontfile=font_path, fontname='CJK')
+    else:
+        page_src.insert_text((x, y), text, fontsize=size)
+pix = page_src.get_pixmap(matrix=fitz.Matrix(2, 2))
+
+# Step 2: embed pixmap as an image in a new PDF (no text layer)
+doc_out = fitz.open()
+page_out = doc_out.new_page(width=600, height=800)
+page_out.insert_image(fitz.Rect(0, 0, 600, 800), stream=pix.tobytes("png"))
+assert page_out.get_text().strip() == '', "unexpected text layer"
+doc_out.save('aa-ocr/tests/fixtures/scanned_invoice.pdf')
+print('scanned_invoice.pdf created')
 EOF
 ```

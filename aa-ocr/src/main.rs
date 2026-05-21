@@ -73,15 +73,24 @@ fn main() {
 }
 
 /// Handle a PDF file: try text-layer extraction first, fall back to Vision OCR.
+///
+/// Implements spec § 5.3.1.1:
+/// - Text-layer PDFs: extracted directly via `pdf-extract`.
+/// - Scanned/image-only PDFs (`Ok(None)`): rasterized page-by-page via PDFKit
+///   and fed into Vision OCR (`vision::ocr_pdf_via_vision`).
 fn handle_pdf(path: &PathBuf) -> String {
     match pdf::extract_text(path) {
         Ok(Some(text)) => text,
         Ok(None) => {
-            // Scanned PDF — try Vision OCR on the first page rendered as image.
-            // For now we report empty (Vision does not natively handle PDFs directly;
-            // a future enhancement could render to PNG first).
-            eprintln!("aa-ocr: PDF has no text layer; Vision PDF support not yet implemented");
-            String::new()
+            // Scanned PDF — rasterize via PDFKit and run Vision OCR.
+            eprintln!("aa-ocr: PDF has no text layer; falling back to Vision OCR (PDFKit rasterize)");
+            match vision::ocr_pdf_via_vision(path) {
+                Ok(text) => text,
+                Err(e) => {
+                    eprintln!("aa-ocr: Vision PDF OCR error: {}", e);
+                    String::new()
+                }
+            }
         }
         Err(e) => {
             eprintln!("aa-ocr: pdf-extract error: {}", e);

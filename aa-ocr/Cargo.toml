@@ -17,9 +17,15 @@ pdf-extract = "0.10.0"
 # objc2-vision 0.3.2 ships all Vision types enabled by default; no extra features needed.
 # objc2-foundation 0.3.2 for NSArray, NSString, NSURL, etc.
 # objc2 0.6.x is pulled in transitively; we declare it explicitly for Retained<T> usage.
+# objc2-pdf-kit 0.3.2 for PDFDocument/PDFPage rendering (scanned PDF → Vision fallback).
+# objc2-core-graphics 0.3.2 for CGBitmapContextCreate / CGBitmapContextCreateImage.
 objc2 = { version = "0.6", optional = true }
 objc2-foundation = { version = "0.3.2", optional = true }
 objc2-vision = { version = "0.3.2", optional = true }
+objc2-pdf-kit = { version = "0.3.2", features = ["PDFDocument", "PDFPage"], optional = true }
+objc2-core-graphics = { version = "0.3.2", features = ["CGBitmapContext", "CGColorSpace", "CGContext", "CGImage"], optional = true }
+# objc2-core-foundation for CGRect/CGPoint/CGSize geometry types (used in PDF rasterization).
+objc2-core-foundation = { version = "0.3.2", optional = true }
 
 # JSON output
 serde = { version = "1.0", features = ["derive"] }
@@ -32,7 +38,7 @@ regex = "1"
 default = ["vision"]
 # Vision feature gate: only meaningful on macOS, but we declare it here so the
 # crate compiles cleanly on other platforms (vision deps become unreachable).
-vision = ["dep:objc2", "dep:objc2-foundation", "dep:objc2-vision"]
+vision = ["dep:objc2", "dep:objc2-foundation", "dep:objc2-vision", "dep:objc2-pdf-kit", "dep:objc2-core-graphics", "dep:objc2-core-foundation"]
 
 [dev-dependencies]
 # CLI integration tests: spawn `aa-ocr` binary and assert on exit codes / stdout
