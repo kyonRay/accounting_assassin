@@ -1,0 +1,81 @@
+title: "检查你对第 4 章的理解"
+description: "4 道题 · 大约 3 分钟 · 答错也没关系"
+questions:
+  - id: q1
+    type: single-choice
+    stem: |
+      你现在有 12 个月的 invoices CSV,要算全年每个类目的总和。
+      为什么写一段 Python 脚本比让 AI 帮你算 12 次更好?
+    options:
+      - id: A
+        text: "因为 AI 收费,自己跑免费"
+        feedback: "成本不是重点 —— 真正的差别是'可复算 + 可复用'。"
+      - id: B
+        text: "因为脚本下次还能用,AI 当次回答下次帮不上"
+        feedback: "完全正确。这就是 vibe-coding 的核心:让 AI 给你工具,而不是给你答案。"
+        correct: true
+      - id: C
+        text: "因为 Python 比 AI 准"
+        feedback: "AI 和 Python 都能准 —— 关键是 Python 跑一次后**永远都准**,AI 每次都重新算。"
+      - id: D
+        text: "因为 AI 不能处理多个文件"
+        feedback: "AI 当然能处理多个文件。但你**每多一个月都要再求一次**,而脚本不用。"
+
+  - id: q2
+    type: single-choice
+    stem: |
+      你让 AI 帮你算了 1 月的发票汇总。下个月又有新文件了。下面哪种做法**最符合本章教的"脚本复用"心智**?
+    options:
+      - id: A
+        text: "再问 AI 一次,把 2 月的文件给它"
+        feedback: "这又回到了 Ch 1 的'依赖 AI 当次答案'模式。脚本就是为了避免这个。"
+      - id: B
+        text: "翻 Claude Code 的工作日志找到 1 月的脚本,自己换个文件名再跑"
+        feedback: "完全正确。脚本是 AI 留下来的'你的工具',你之后自己用。"
+        correct: true
+      - id: C
+        text: "把 2 月数据复制粘贴进 ChatGPT,让它算"
+        feedback: "这是 Ch 1 教过的最容易出错的做法。"
+      - id: D
+        text: "等 AI 升级再算"
+        feedback: "AI 升级与否都不应该决定你能不能算 2 月数据。"
+
+  - id: q3
+    type: multiple-choice
+    stem: |
+      下面哪些做法体现了"AI 写工具,你用工具"的心智?(可多选)
+    options:
+      - id: A
+        text: "把 AI 给的代码存到 ~/scripts/ 下,以后按需调用"
+        feedback: "正确 —— 这就是把'当次答复'变成'你的工具'。"
+        correct: true
+      - id: B
+        text: "每次有新需求都重新让 AI 写一遍代码"
+        feedback: "不正确 —— 这又落回'依赖 AI 当次产出'。"
+      - id: C
+        text: "在 AI 写的代码顶部加几行中文注释,标注'每月初跑'、'参数是 CSV 路径'"
+        feedback: "正确 —— 这是把'一次性脚本'变成'文档化的工具'的关键一步。"
+        correct: true
+      - id: D
+        text: "把脚本测试一遍后,设个定时任务让它每月自动跑"
+        feedback: "正确 —— 这是工具化的进一步。"
+        correct: true
+
+  - id: q4
+    type: single-choice
+    stem: |
+      Part I (Ch 1-4) 学完后,你脑子里应该建立的核心心智模型是哪一个?
+    options:
+      - id: A
+        text: "AI 比人聪明,以后让 AI 算就行"
+        feedback: "不对 —— 本课没说 AI 比人聪明。'谁来判断意义'还是你。"
+      - id: B
+        text: "AI 是'会编故事 + 真能去做的两层'。让它去做、能复算、能反复用 = vibe-coding 的真正含义"
+        feedback: "完全正确。这就是 Part I 想让你建立的整体模型。"
+        correct: true
+      - id: C
+        text: "把所有工作给 AI 就行,自己不用想"
+        feedback: "正相反 —— Ch 3 说过:意义判断、结果可信度,都是你的工作。"
+      - id: D
+        text: "Python 是必须学的"
+        feedback: "本课不要你学 Python —— 你要学的是'让 AI 写 Python,你用结果'。"

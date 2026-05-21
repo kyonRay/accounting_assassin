@@ -1,0 +1,216 @@
+# 第 4 章 · 从一次性帮忙到重复可用
+
+## 开场:前三章学到了什么
+
+<Callout type="insight" title="Part I 进度回顾">
+- **Ch 1**:AI 工具 ≠ ChatGPT 2.0 —— 它有眼睛 + 手
+- **Ch 2**:AI 看真实文件 —— 它的"眼睛"工作了
+- **Ch 3**:AI 写代码,沙箱跑 —— 它的"手"工作了,你看到了真实结果
+
+今天换一个问题:**"算一次 vs 算 12 次"**。
+</Callout>
+
+前三章你体验了 AI 真正"去做事"的感觉 —— 读文件、写代码、跑代码、看结果。
+
+但有一件事还没解决:**如果下个月又来了一批新发票,你还得重头让 AI 帮你算一次吗?**
+
+---
+
+## 今天的场景:12 个月批量处理
+
+你现在有 12 个月的发票数据,文件分别叫：
+
+```
+invoices-2026-01.csv
+invoices-2026-02.csv
+...
+invoices-2026-12.csv
+```
+
+目标：**算出整年每个类目(餐饮 / 办公 / 差旅 / 云服务 / 工资)的总金额。**
+
+---
+
+## 方案 A vs 方案 B
+
+<ComparisonDemo
+  leftTitle="方案 A：ChatGPT 思路(逐月问)"
+  rightTitle="方案 B：脚本思路(写一次跑 N 次)"
+  left={<>
+    <p>1 月:把文件给 AI → 等结果</p>
+    <p>2 月:把文件给 AI → 等结果</p>
+    <p>3 月:把文件给 AI → 等结果</p>
+    <p>……一共重复 12 次</p>
+    <p style={{marginTop: "0.75rem"}}><strong>✗ 12 次复制粘贴<br />✗ 每次等 AI 回答<br />✗ 结果不可独立复算</strong></p>
+  </>}
+  right={<>
+    <p>让 AI <strong>一次性</strong>写一段 Python</p>
+    <p>脚本自动读所有 12 个文件</p>
+    <p>第一次跑:12 个月全出来</p>
+    <p>下个月:自己改一行再跑</p>
+    <p style={{marginTop: "0.75rem"}}><strong>✓ AI 写 1 次<br />✓ 你跑 N 次<br />✓ 每次结果都可追溯</strong></p>
+  </>}
+/>
+
+---
+
+## 第一步:看 AI 写出批量处理脚本
+
+<SandboxStep
+  id="script-written"
+  hint="不用真的输入 —— 直接看下面 AI 写出的代码,然后点'我做完了'。"
+>
+  在沙箱里,AI 收到了这个请求:"帮我把 invoices-2026-\*.csv 所有文件按类目汇总金额。"
+
+  它做了这些事:
+
+  - 🔧 **List files** 看当前目录有哪些 CSV 文件
+  - 🔧 **Read** 一个文件确认列名结构
+  - ✍️  **写出**下面这段 Python 脚本
+</SandboxStep>
+
+---
+
+## AI 写出来的脚本长这样
+
+这就是 AI 一次性写出的批量处理脚本 —— 简洁、地道,17 行:
+
+```python
+import csv
+import glob
+from collections import defaultdict
+
+totals = defaultdict(float)
+
+# 自动找到当前目录下所有 invoices-2026-*.csv 文件
+for path in sorted(glob.glob("invoices-2026-*.csv")):
+    with open(path) as f:
+        for row in csv.DictReader(f):
+            totals[row["category"]] += float(row["amount"])
+
+# 按类目名称排序后打印
+for cat in sorted(totals):
+    print(f"{cat}: ¥{totals[cat]:.2f}")
+```
+
+**你不需要理解每一行** —— 只需要看懂它在做什么:
+
+1. `glob.glob("invoices-2026-*.csv")` —— 自动找到所有 12 个月的文件
+2. `csv.DictReader` —— 按列名读每一行
+3. `totals[category] += amount` —— 把金额累加到对应类目
+4. 最后打印每个类目的总金额
+
+---
+
+## 第二步:看沙箱跑出 12 个月的汇总
+
+<SandboxStep
+  id="first-run-done"
+  hint="沙箱已经帮你跑好了。看明白数字从哪来,然后点'我做完了'。"
+>
+  沙箱把上面那段脚本跑了一遍。它读取了你的 12 个 invoices-2026-MM.csv 文件,输出结果类似这样:
+
+  ```
+  云服务: ¥18,432.50
+  办公: ¥12,891.20
+  差旅: ¥21,305.80
+  工资: ¥96,000.00
+  餐饮: ¥28,760.40
+  ```
+
+  注意:**这些数字是 Python 真的读了 12 个文件算出来的 —— 不是 AI 编的。**
+
+  每一个数字都可以追溯：回到对应的 CSV 文件,用 Excel 手工验证。
+</SandboxStep>
+
+---
+
+## 关键转折:这段代码现在是你的工具了
+
+<Callout type="insight" title="从'AI 的答案'到'你的工具'">
+刚才那段脚本,在 AI 写完的那一刻,就变成了**你的工具** —— 不再属于 AI。
+
+下个月来了 `invoices-2026-13.csv`?你自己把文件放进同一个目录,再跑一次脚本,结果立刻出来。
+
+**你不需要再求 AI 第二次。**
+</Callout>
+
+这就是本章标题"从一次性帮忙到重复可用"的含义:
+
+- **一次性帮忙**:Ch 1-3 里 AI 每次帮你算一个问题
+- **重复可用**:AI 帮你写一个工具,这个工具以后你自己跑
+
+---
+
+## 第三步:体验脚本复用(假设下个月来了新数据)
+
+<SandboxStep
+  id="reused-on-new-month"
+  hint="这是本章最核心的体验 —— 体会'写一次跑 N 次'。看明白后点'我做完了'。"
+>
+  假设现在是 2027 年 1 月。你又收到了一批新发票:`invoices-2027-01.csv`。
+
+  你**不需要**重新去问 AI。你只需要:
+
+  1. 把新文件放进同一个目录
+  2. 把脚本第一行改一个字: `glob.glob("invoices-2026-*.csv")` → `glob.glob("invoices-2027-*.csv")`
+  3. 再跑一次 —— 新的 2027 年汇总立刻出来
+
+  沙箱已经模拟好了这个场景:你会看到 **同一段脚本** 读了 `invoices-2027-01.csv`,输出了新月份的结果。
+
+  **这就是脚本复用的 lived experience。**
+</SandboxStep>
+
+---
+
+## 收束对比:杠杆在哪里
+
+<ComparisonDemo
+  leftTitle="逐月求 AI(12 次)"
+  rightTitle="脚本复用(AI 写 1 次,你跑 N 次)"
+  left={<>
+    <p>你的时间:12 次等待 + 12 次整理</p>
+    <p>AI 参与度:每月都要</p>
+    <p>可追溯性:取决于 AI 当次记录</p>
+    <p>13 月来了怎么办:再问一次 AI</p>
+    <p style={{marginTop: "0.75rem"}}><strong>投入随月份线性增长</strong></p>
+  </>}
+  right={<>
+    <p>你的时间:AI 写 1 次 + 你之后改 1 行</p>
+    <p>AI 参与度:只需 1 次</p>
+    <p>可追溯性:代码可审计,结果可复算</p>
+    <p>13 月来了怎么办:自己跑</p>
+    <p style={{marginTop: "0.75rem"}}><strong>一次投入,长期回报</strong></p>
+  </>}
+/>
+
+---
+
+## Part I 核心 Insight
+
+<Callout type="insight" title="vibe-coding 的真正含义">
+**"AI 帮你写一次脚本,你接下来 12 个月自己跑 = 你不再依赖 AI 的'当次回答',而是依赖 AI 的'当次产出'。"**
+
+这是 vibe-coding 的真正含义:AI 一次性给你一个能用的工具,你之后用它,不依赖它。
+
+你 10 年的会计经验 + AI 写的工具 = **你用更少的时间做更多可追溯的工作**。
+</Callout>
+
+---
+
+## Part I 小结
+
+| 章节 | 核心学习 | AI 的角色 |
+|---|---|---|
+| Ch 1 | AI 工具 ≠ ChatGPT | 有眼睛 + 手的 AI |
+| Ch 2 | AI 看你的真实文件 | "眼睛"工作了 |
+| Ch 3 | AI 写代码,沙箱跑 | "手"工作了 |
+| **Ch 4** | **脚本可以重复用** | **AI 做了一次,你用 N 次** |
+
+**Part II** 开始,我们会从沙箱走向你的真实环境 —— 安装真实的 Claude Code,在你自己的电脑上跑同样的脚本。
+
+---
+
+## 章末小测验
+
+<QuizRunner src="./quiz.yaml" />
