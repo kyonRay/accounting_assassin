@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use accounting_assassin::commands;
+use accounting_assassin::diagnostics;
 
 fn main() {
     tauri::Builder::default()
@@ -11,6 +12,7 @@ fn main() {
             commands::checker::run_bundled_checker,
             commands::shell::open_terminal_at,
             commands::env_init::initialize_real_env,
+            diagnostics::report::collect_diagnostics,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
