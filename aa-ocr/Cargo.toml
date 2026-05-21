@@ -1,0 +1,39 @@
+[package]
+name = "aa-ocr"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77.2"
+description = "Invoice OCR CLI for 记账杀手 — wraps Apple Vision + pdf-extract"
+
+[[bin]]
+name = "aa-ocr"
+path = "src/main.rs"
+
+[dependencies]
+# PDF text-layer extraction
+pdf-extract = "0.10.0"
+
+# macOS Vision Framework bindings (objc2 ecosystem, 0.3.2 / 0.6.x series)
+# objc2-vision 0.3.2 ships all Vision types enabled by default; no extra features needed.
+# objc2-foundation 0.3.2 for NSArray, NSString, NSURL, etc.
+# objc2 0.6.x is pulled in transitively; we declare it explicitly for Retained<T> usage.
+objc2 = { version = "0.6", optional = true }
+objc2-foundation = { version = "0.3.2", optional = true }
+objc2-vision = { version = "0.3.2", optional = true }
+
+# JSON output
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Regex-based field extraction
+regex = "1"
+
+[features]
+default = ["vision"]
+# Vision feature gate: only meaningful on macOS, but we declare it here so the
+# crate compiles cleanly on other platforms (vision deps become unreachable).
+vision = ["dep:objc2", "dep:objc2-foundation", "dep:objc2-vision"]
+
+[dev-dependencies]
+# CLI integration tests: spawn `aa-ocr` binary and assert on exit codes / stdout
+assert_cmd = "2.2.2"
