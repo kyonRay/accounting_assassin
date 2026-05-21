@@ -27,7 +27,7 @@ pub async fn read_user_file(rel_path: PathBuf) -> Result<String, String> {
                     "[SECURITY] read_user_file: 路径越界 — rejected rel_path={:?}: {}",
                     rel_path, e
                 );
-                format!("路径越界: access denied for path {:?}", rel_path)
+                format!("路径越界:不允许访问 {:?}", rel_path)
             }
             PathGuardError::NotFound(p) => {
                 format!("file not found: {:?}", p)

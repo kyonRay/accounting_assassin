@@ -7,6 +7,7 @@
 use serde::Serialize;
 
 use super::env::{check_command_exists, AllowedCommand};
+use crate::safety;
 
 /// Report returned to the frontend after workspace initialization.
 #[derive(Debug, Serialize)]
@@ -36,13 +37,21 @@ const WORKSPACE_README: &str = r#"# 我的会计 AI 作业本
 /// 3. Health-check all six `AllowedCommand` variants and report present/missing.
 #[tauri::command]
 pub async fn initialize_real_env() -> Result<InitReport, String> {
+    // Resolve the uncanonicalised base path to create the directory.
+    // We cannot call safety::workspace_root() yet because it canonicalizes,
+    // and the directory may not exist until after create_dir_all.
     let home = dirs::home_dir()
         .ok_or_else(|| "home directory is unresolvable".to_string())?;
-    let workspace = home.join("accounting-learner");
+    let workspace_uncanonicalized = home.join("accounting-learner");
 
     // 1. Create workspace directory (idempotent).
-    std::fs::create_dir_all(&workspace)
+    std::fs::create_dir_all(&workspace_uncanonicalized)
         .map_err(|e| format!("failed to create workspace directory: {}", e))?;
+
+    // Now that the directory exists we can get the canonical path via the
+    // shared path_guard helper — single source of truth, no duplication.
+    let workspace = safety::workspace_root()
+        .map_err(|e| format!("workspace root error: {}", e))?;
 
     // 2. Write README only on first creation (never overwrite user content).
     let readme_path = workspace.join("README.md");

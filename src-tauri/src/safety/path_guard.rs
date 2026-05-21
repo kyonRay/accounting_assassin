@@ -32,12 +32,13 @@ pub enum PathGuardError {
 
 /// Returns the canonicalized workspace root (`~/accounting-learner/`).
 ///
-/// Panics at runtime only if the home directory cannot be resolved (should never
-/// happen in a normal macOS process environment).
+/// Returns `Err(PathGuardError::HomeUnresolvable)` if the home directory cannot
+/// be determined, or `Err(PathGuardError::NotFound)` if the workspace directory
+/// does not yet exist on disk (caller must create it first).
 pub fn workspace_root() -> Result<PathBuf, PathGuardError> {
     let home = dirs::home_dir().ok_or(PathGuardError::HomeUnresolvable)?;
     let root = home.join("accounting-learner");
-    Ok(root)
+    root.canonicalize().map_err(|_| PathGuardError::NotFound(root))
 }
 
 /// Validates that `rel` is a relative path that resolves inside the workspace.
@@ -103,7 +104,7 @@ mod tests {
     static HOME_LOCK: Mutex<()> = Mutex::new(());
 
     fn with_fake_home<F: FnOnce(&TempDir)>(f: F) {
-        let _guard = HOME_LOCK.lock().unwrap();
+        let _guard = HOME_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let tmp = TempDir::new().unwrap();
         let workspace = tmp.path().join("accounting-learner");
         fs::create_dir_all(&workspace).unwrap();
@@ -166,14 +167,11 @@ mod tests {
             // so ../../ goes to tmp's parent. Let's use a known-outside path instead.
             // The workspace is at tmp/accounting-learner/; ../outside.txt is tmp/outside.txt.
             let result = check_inside_workspace(Path::new("../outside.txt"));
-            match &result {
-                Err(PathGuardError::OutsideWorkspace) => {}
-                Err(PathGuardError::NotFound(_)) => {
-                    // Also acceptable: the escape resolves outside the workspace and
-                    // canonicalize might fail depending on OS — either rejection is correct.
-                }
-                other => panic!("expected OutsideWorkspace or NotFound, got {:?}", other),
-            }
+            assert!(
+                matches!(result, Err(PathGuardError::OutsideWorkspace)),
+                "expected OutsideWorkspace (dotdot escape), got {:?}",
+                result
+            );
         });
     }
 
