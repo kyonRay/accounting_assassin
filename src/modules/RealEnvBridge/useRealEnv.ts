@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useProgress } from "@/modules/Progress";
 import { runHealthCheck, type HealthSnapshot } from "./health-check";
 
@@ -15,9 +15,7 @@ export function useRealEnv(): RealEnvState {
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [snapshot, setSnapshot] = useState<HealthSnapshot | null>(null);
-  // Track whether the initial fetch has been kicked off so StrictMode double-invocation
-  // doesn't fire two concurrent fetches.
-  const [initialized, setInitialized] = useState(false);
+  const initializedRef = useRef(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -30,12 +28,11 @@ export function useRealEnv(): RealEnvState {
     }
   }, []);
 
-  // Fire the initial health check once, driven by state rather than useEffect so
-  // the react-hooks/set-state-in-effect rule is satisfied.
-  if (!initialized) {
-    setInitialized(true);
+  useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
     void refresh();
-  }
+  }, [refresh]);
 
   return { ready, loading, snapshot, mode, refresh };
 }
