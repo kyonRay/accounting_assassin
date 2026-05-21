@@ -99,9 +99,9 @@ mod tests {
     /// TempDir and unique HOME path, but std::env::set_var is process-global — use
     /// the serial approach: set HOME, call, then restore).
     ///
-    /// We serialize these tests via a mutex to avoid races.
-    use std::sync::Mutex;
-    static HOME_LOCK: Mutex<()> = Mutex::new(());
+    /// We serialize these tests via a process-global mutex shared with every other
+    /// module that overrides HOME (e.g. diagnostics::report). See test_util::HOME_LOCK.
+    use crate::test_util::HOME_LOCK;
 
     fn with_fake_home<F: FnOnce(&TempDir)>(f: F) {
         let _guard = HOME_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());

@@ -278,12 +278,12 @@ pub async fn collect_diagnostics() -> Result<DiagnosticReport, String> {
 mod tests {
     use super::*;
     use std::fs;
-    use std::sync::Mutex;
     use tempfile::TempDir;
 
     /// Serialize HOME-override tests so they don't race.
     /// `dirs::home_dir()` reads $HOME on Unix; `std::env::set_var` is process-global.
-    static HOME_LOCK: Mutex<()> = Mutex::new(());
+    /// This mutex is shared with `safety::path_guard` tests via `crate::test_util`.
+    use crate::test_util::HOME_LOCK;
 
     /// Helper: build a single-threaded tokio runtime for calling async functions
     /// from sync test contexts.
