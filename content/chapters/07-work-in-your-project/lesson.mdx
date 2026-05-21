@@ -68,7 +68,7 @@
 
 ### aa-ocr 是什么？
 
-记账杀手 App 里预置了一个叫 `aa-ocr` 的命令行工具，它封装了 macOS 系统级的图像识别（Vision Framework），能从发票 PDF 或图片里提取：
+记账杀手 App 里预置了一个叫 `aa-ocr` 的命令行工具，它封装了 macOS 系统级的图像识别，能从发票 PDF 或图片里提取：
 
 | 字段 | 说明 |
 |---|---|
@@ -82,7 +82,7 @@
 
 如果终端里输入 `aa-ocr --version` 显示「command not found」，说明 App 还没完成安装。请回到 Ch 5 的「真实环境切换」步骤，重新走一遍，让 App 把 symlink 装上。
 
-你**不需要**自己写 OCR 代码，也不需要了解它内部的 Rust / Vision Framework 实现——那些复杂性都被封装进了这个工具。
+你**不需要**自己写 OCR 代码，也不需要了解它内部实现细节——那些复杂性都被封装进了这个工具。
 </Callout>
 
 `aa-ocr` 的接口非常简单：
@@ -103,6 +103,7 @@ aa-ocr path/to/invoice.pdf
 退出码含义：
 - `0` — 全部字段提取成功
 - `4` — 部分字段提取成功（JSON 里缺失的字段值为 `null`）
+- `3` — 无法识别 — 图片质量太低或不支持的格式
 - `2` — 文件不存在或无法读取
 
 ### 动手：让 Claude 写 invoice_ocr.py
@@ -123,8 +124,10 @@ aa-ocr path/to/invoice.pdf
      日期 / 商家 / 金额 / 税号
   4. 如果 aa-ocr 返回退出码 4（部分字段），打印出已提取的字段，
      并标注哪些字段缺失
-  5. 如果退出码 2（文件不存在），打印友好的错误信息
-  6. 只用标准库（subprocess、json、sys），不要安装额外的包
+  5. 如果退出码 3（无法识别），打印友好的错误信息，
+     提示用户检查文件是否为清晰的 PDF/PNG/JPG 格式的发票
+  6. 如果退出码 2（文件不存在），打印友好的错误信息
+  7. 只用标准库（subprocess、json、sys），不要安装额外的包
   ```
 
   Claude 会在 `scripts/invoice_ocr.py` 里写好脚本。确认文件创建完成后，输入 `/exit` 退出，然后点「我跑完了」。
@@ -140,7 +143,7 @@ aa-ocr path/to/invoice.pdf
 <RealStep
   id="script-ran-successfully"
   expectsCli="Python3"
-  command="python3 ~/accounting-learner/scripts/invoice_ocr.py ~/accounting-learner/invoices/sample.pdf"
+  command="python3 ~/accounting-learner/scripts/invoice_ocr.py ~/accounting-learner/invoices/<发票文件名>"
 >
   把 `sample.pdf` 换成你实际的发票文件名，然后在终端里运行上面的命令。
 
