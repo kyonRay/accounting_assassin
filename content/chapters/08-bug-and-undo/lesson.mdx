@@ -266,8 +266,10 @@ cp ~/Library/Application\ Support/AccountingAssassin/fixtures/bad_encoding.csv \
 
 ```bash
 python3 - << 'EOF'
+import os
 content = '类目,金额,日期,备注\n办公用品,120.00,2025-01-15,打印纸\n交通费,380.50,2025-01-20,出差火车票\n'
-with open('/Users/$(whoami)/accounting-learner/invoices/bad_encoding.csv', 'wb') as f:
+path = os.path.join(os.path.expanduser("~"), "accounting-learner", "invoices", "bad_encoding.csv")
+with open(path, 'wb') as f:
     f.write(content.encode('gbk'))
 print('文件已生成')
 EOF

@@ -80,8 +80,9 @@ export function BugReportCard({
 
       <div className="space-y-4">
         <div>
-          <label className={labelClass}>【期望】</label>
+          <label htmlFor="bugreport-expected" className={labelClass}>【期望】</label>
           <textarea
+            id="bugreport-expected"
             className={textareaClass}
             placeholder="我让脚本把 invoices.csv 里的发票按类目汇总到 summary.xlsx"
             value={expected}
@@ -91,8 +92,9 @@ export function BugReportCard({
         </div>
 
         <div>
-          <label className={labelClass}>【实际】</label>
+          <label htmlFor="bugreport-actual" className={labelClass}>【实际】</label>
           <textarea
+            id="bugreport-actual"
             className={textareaClass}
             placeholder="脚本跑出来 summary.xlsx 是空的，什么都没有"
             value={actual}
@@ -102,8 +104,9 @@ export function BugReportCard({
         </div>
 
         <div>
-          <label className={labelClass}>【报错原文】</label>
+          <label htmlFor="bugreport-error" className={labelClass}>【报错原文】</label>
           <textarea
+            id="bugreport-error"
             className={`${textareaClass} min-h-[100px]`}
             placeholder={"Traceback (most recent call last):\n  ...\nUnicodeDecodeError: 'utf-8' codec can't decode byte 0xb7\n\n（整段复制，不要删英文）"}
             value={errorText}
@@ -116,8 +119,9 @@ export function BugReportCard({
         </div>
 
         <div>
-          <label className={labelClass}>【我试过的】</label>
+          <label htmlFor="bugreport-tried" className={labelClass}>【我试过的】</label>
           <textarea
+            id="bugreport-tried"
             className={textareaClass}
             placeholder={"- 我又跑了一次，还是一样\n- 我打开了 invoices.csv，看着挺正常"}
             value={tried}

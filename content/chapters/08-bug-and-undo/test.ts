@@ -94,6 +94,20 @@ describe("Ch 08 · Bug 来了怎么办", () => {
     expect(result.hint).toMatch(/git restore|回退|练习.*3|练习三/i);
   });
 
+  it("缺少 forward-ref-noted → 第一次提示含 systematic-debugging/彩蛋 关键词", async () => {
+    const fs = createVirtualFs();
+    // write all 5 other markers, NOT forward-ref-noted
+    await fs.write(".progress/intro-read", "done");
+    await fs.write(".progress/template-tried", "done");
+    await fs.write(".progress/exercise-1-encoding-fixed", "done");
+    await fs.write(".progress/exercise-2-silent-sum-fixed", "done");
+    await fs.write(".progress/exercise-3-git-rollback-done", "done");
+
+    const result = await runChecker(check, { mode: "real", fs }, 1);
+    expect(result.passed).toBe(false);
+    expect(result.hint).toMatch(/systematic-debugging|彩蛋|forward|进阶/);
+  });
+
   it("第 2 次仍未完成 → 提示变得更具体（含 marker id）", async () => {
     const fs = createVirtualFs();
     // Only intro-read done, others missing
