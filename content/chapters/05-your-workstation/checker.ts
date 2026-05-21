@@ -11,7 +11,7 @@ export const check: CheckerFn = async (env) => {
   if (!fs) {
     return {
       passed: false,
-      hints: ["环境状态异常,试试刷新页面后重新开始。"],
+      hints: ["环境状态异常，试试刷新页面后重新开始。"],
     };
   }
 

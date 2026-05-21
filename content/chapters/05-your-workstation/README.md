@@ -28,11 +28,11 @@
 
 - `brew install python` 和 `brew install git`：稳定命令，不太会变
 - Claude Code 安装命令（`npm install -g @anthropic-ai/claude-code`）：可能随版本迭代变更，请保持与 Anthropic 官方文档同步
-  - 官方文档：https://docs.anthropic.com/claude/claude-code
+  - 官方文档：https://code.claude.com/docs
 
 ## 重写后的最小检查
 
 ```bash
 pnpm test:chapters content/chapters/05-your-workstation/
-# 应该 8 个测试全过
+# 应该 9 个测试全过
 ```

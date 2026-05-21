@@ -101,36 +101,46 @@ macOS 确实预装了一个 Git，但版本比较老，而且依赖 Xcode Comman
 
 Claude Code 是本课的核心工具。它是一个命令行界面（CLI），让你在终端里直接与 Claude 对话，同时让 Claude 能读你的文件、跑你的代码。
 
-<Callout type="warn" title="安装命令可能已更新">
-Claude Code 仍在快速迭代中。如果下面的命令失败，请访问 [Anthropic 官方安装页面](https://docs.anthropic.com/claude/claude-code) 查看最新安装方式。
-</Callout>
-
 <RealStep
   id="claude-installed"
   expectsCli="Claude"
-  command="npm install -g @anthropic-ai/claude-code"
+  command="curl -fsSL https://claude.ai/install.sh | bash"
 >
-  在终端里运行上面的命令，用 npm 全局安装 Claude Code。
+  在终端里运行上面的命令，使用官方脚本安装 Claude Code。
 
-  安装需要 Node.js 环境。如果显示 `npm: command not found`，先运行：
-  ```
-  brew install node
-  ```
-  然后重试上面的安装命令。
+  脚本会自动检测你的系统环境，下载并安装对应版本。安装完成后会提示成功。
 
   安装完成后验证：
   ```
   claude --version
   ```
-  你会看到类似 `claude/1.x.x` 的输出。
+  你会看到类似 `claude/2.x.x darwin-arm64` 的输出。
 </RealStep>
+
+<Callout type="tip" title="其他安装方式">
+官方推荐的 curl 脚本是最简单的方式，安装后还会自动在后台更新。如果你遇到网络问题，也可以用下面的方法：
+
+- **Homebrew**（你刚才已经装好了，直接可用）：
+  ```
+  brew install --cask claude-code
+  ```
+  注意：Homebrew 版本不会自动更新，需要手动运行 `brew upgrade claude-code`。
+
+- **npm**（进阶用户）：
+  ```
+  npm install -g @anthropic-ai/claude-code
+  ```
+  注意：**不要加 `sudo`**——Anthropic 官方文档明确警告 `sudo npm install -g` 会导致权限问题和安全风险。
+
+更多安装方式参见 [Claude Code 官方文档](https://code.claude.com/docs)。
+</Callout>
 
 <Callout type="tip" title="如果 claude 命令找不到">
 安装后如果新开终端还是显示"command not found"，尝试：
 ```
 source ~/.zprofile
 ```
-或者直接关闭终端窗口再重新打开。
+或者直接关闭终端窗口再重新打开。Apple Silicon（M 系列）芯片的 Mac 尤其可能需要这一步。
 </Callout>
 
 ---
