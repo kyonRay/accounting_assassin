@@ -58,6 +58,18 @@ describe("Ch 11 · Codex 入门", () => {
     expect(result.hint).toMatch(/任务|分类|CSV/i);
   });
 
+  it("缺少 style-noticed → 第一次提示含 风格/差异/style 关键词", async () => {
+    const fs = createVirtualFs();
+    await fs.write(".progress/codex-installed", "done");
+    await fs.write(".progress/codex-logged-in", "done");
+    await fs.write(".progress/codex-first-task-tried", "done");
+    // .progress/style-noticed intentionally absent
+
+    const result = await runChecker(check, { mode: "real", fs }, 1);
+    expect(result.passed).toBe(false);
+    expect(result.hint).toMatch(/风格|差异|style/i);
+  });
+
   it("第 2 次仍未完成 → 提示变得更具体（含 marker id 关键词）", async () => {
     const fs = createVirtualFs();
     // Only codex-installed done, others missing
