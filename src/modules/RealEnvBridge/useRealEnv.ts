@@ -1,44 +1,29 @@
-import { useState, useCallback, useRef, useEffect } from "react";
-import { useProgress } from "@/modules/Progress";
-import { runHealthCheck, type HealthSnapshot } from "./health-check";
+import { useEffect } from "react";
+import { useProgress, type AppMode } from "@/modules/Progress";
+import { useHealthStore } from "./healthStore";
+import type { HealthSnapshot } from "./health-check";
 
 export interface RealEnvState {
+  /** Non-null after first completed check; may be stale during a refresh (use `loading`). */
+  snapshot: HealthSnapshot | null;
   loading: boolean;
   error: Error | null;
-  /**
-   * Non-null after the first completed check.
-   * May be stale while a refresh is in flight — use `loading` to detect that.
-   */
-  snapshot: HealthSnapshot | null;
-  mode: "sandbox" | "real";
+  mode: AppMode;
   refresh: () => Promise<void>;
 }
 
 export function useRealEnv(): RealEnvState {
+  const snapshot = useHealthStore((s) => s.snapshot);
+  const loading = useHealthStore((s) => s.loading);
+  const error = useHealthStore((s) => s.error);
+  const refresh = useHealthStore((s) => s.refresh);
   const mode = useProgress((s) => s.mode);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const [snapshot, setSnapshot] = useState<HealthSnapshot | null>(null);
-  const initializedRef = useRef(false);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      setError(null);
-      const result = await runHealthCheck();
-      setSnapshot(result);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   useEffect(() => {
-    if (initializedRef.current) return;
-    initializedRef.current = true;
-    void refresh();
-  }, [refresh]);
+    if (snapshot === null && !loading && !error) {
+      void refresh();
+    }
+  }, [snapshot, loading, error, refresh]);
 
-  return { loading, error, snapshot, mode, refresh };
+  return { snapshot, loading, error, mode, refresh };
 }

@@ -13,6 +13,7 @@ import * as core from "@tauri-apps/api/core";
 import * as healthCheckMod from "@/modules/RealEnvBridge/health-check";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useRealEnv } from "@/modules/RealEnvBridge/useRealEnv";
+import { useHealthStore } from "@/modules/RealEnvBridge/healthStore";
 import { useProgress } from "@/modules/Progress";
 import type { AllowedCommand } from "@/modules/RealEnvBridge/invoke";
 import type { HealthSnapshot } from "@/modules/RealEnvBridge/health-check";
@@ -25,6 +26,10 @@ const EMPTY_SNAPSHOT: HealthSnapshot = { present: [], missing: [] };
 beforeEach(() => {
   mockInvoke.mockReset();
   mockRunHealthCheck.mockReset();
+  // Reset the shared health store so each test starts from a blank slate.
+  // _inFlight must also be cleared so the dedup guard doesn't carry over from
+  // a previous test that left a never-resolving promise in flight.
+  useHealthStore.setState({ snapshot: null, loading: false, error: null, _inFlight: null });
   // Reset progress store to sandbox default
   useProgress.getState().resetProgress();
   localStorage.clear();
@@ -144,5 +149,21 @@ describe("useRealEnv", () => {
 
     expect(result.current.error).toBeNull();
     expect(result.current.snapshot).toEqual(EMPTY_SNAPSHOT);
+  });
+
+  it("fires runHealthCheck only once when multiple hook instances are mounted simultaneously", async () => {
+    mockRunHealthCheck.mockResolvedValue(EMPTY_SNAPSHOT);
+
+    // Render two independent hook instances — they share the same store
+    const { result: r1 } = renderHook(() => useRealEnv());
+    const { result: r2 } = renderHook(() => useRealEnv());
+
+    await waitFor(() => expect(r1.current.snapshot).not.toBeNull());
+    await waitFor(() => expect(r2.current.snapshot).not.toBeNull());
+
+    // Despite two hook instances, the store's inFlight guard dedupes to a single IPC call
+    expect(mockRunHealthCheck).toHaveBeenCalledTimes(1);
+    expect(r1.current.snapshot).toEqual(EMPTY_SNAPSHOT);
+    expect(r2.current.snapshot).toEqual(EMPTY_SNAPSHOT);
   });
 });

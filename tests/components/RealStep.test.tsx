@@ -17,6 +17,7 @@ import { RealStep } from "@/components/RealStep";
 import { ChapterRunnerContext } from "@/modules/ChapterRunner/ChapterRunnerContext";
 import { createVirtualFs } from "@/modules/Sandbox/virtual-fs";
 import { useProgress } from "@/modules/Progress";
+import { useHealthStore } from "@/modules/RealEnvBridge/healthStore";
 import type { ChapterRuntime } from "@/modules/ChapterRunner";
 import type { HealthSnapshot } from "@/modules/RealEnvBridge/health-check";
 
@@ -33,6 +34,9 @@ const FULL_SNAPSHOT: HealthSnapshot = {
 beforeEach(() => {
   mockRunHealthCheck.mockReset();
   mockRunHealthCheck.mockResolvedValue(FULL_SNAPSHOT);
+  // Reset the shared health store so each test starts with a clean snapshot.
+  // _inFlight must also be cleared so the dedup guard doesn't carry over.
+  useHealthStore.setState({ snapshot: null, loading: false, error: null, _inFlight: null });
   useProgress.getState().resetProgress();
   localStorage.clear();
   // RealStep's useRealEnv calls runHealthCheck when using Progress mode.
