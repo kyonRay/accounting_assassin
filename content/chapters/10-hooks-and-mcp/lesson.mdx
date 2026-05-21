@@ -51,6 +51,10 @@ mkdir -p ~/accounting-learner/.claude
 
 **第二步**：把下面这段 JSON 写入 `~/accounting-learner/.claude/settings.local.json`：
 
+<Callout type="warn">
+  如果 `.claude/settings.local.json` 已经存在其他配置（之前的章节可能写过），**只把 `"hooks": { ... }` 这部分合并进去**，不要直接覆盖整个文件。
+</Callout>
+
 ```json
 {
   "hooks": {
@@ -146,18 +150,20 @@ MCP（Model Context Protocol）是 Anthropic 制定的开放协议，让 Claude 
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
+也可以用 Homebrew：`brew install uv`（Ch 5 已经装好了）
+
 **安装 SQLite MCP 服务器**：
 
 ```bash
 # 方法 A：通过 claude mcp add 命令（推荐）
-claude mcp add sqlite-db \
-  --command "uvx" \
-  --args "mcp-server-sqlite" \
-  --args "--db-path" \
-  --args "$HOME/accounting-learner/accounting.db"
+claude mcp add sqlite-db uvx -- mcp-server-sqlite --db-path "$HOME/accounting-learner/accounting.db"
 ```
 
 或者直接编辑 `~/.claude/settings.json`，在 `mcpServers` 里加一项：
+
+<Callout type="warn">
+  ⚠️ `~/.claude/settings.json` 是你的**全局**配置。如果文件已存在，**只在根对象里追加 `"mcpServers"` 这个键**，不要覆盖整个文件。建议先备份：`cp ~/.claude/settings.json ~/.claude/settings.json.bak`。
+</Callout>
 
 ```json
 {
