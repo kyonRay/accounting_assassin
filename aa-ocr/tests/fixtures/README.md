@@ -81,6 +81,9 @@ EOF
 
 To regenerate only `scanned_invoice.pdf` (rasterized invoice with no text layer):
 
+Page size: 300×400 pt. Rasterization: 1.5× scale, JPEG quality 75, garbage-4 + deflate.
+Target size: under 500 KB (currently ~14 KB).
+
 ```sh
 # From repo root — requires Python 3 + PyMuPDF:
 # pip install PyMuPDF
@@ -89,30 +92,35 @@ import fitz, os
 
 font_path = '/System/Library/Fonts/STHeiti Medium.ttc'
 
-# Step 1: render invoice text to a pixmap (acts as the "scanner camera")
+# Step 1: render invoice text to a pixmap at reduced page size (300x400 pt)
 doc_src = fitz.open()
-page_src = doc_src.new_page(width=600, height=800)
+page_src = doc_src.new_page(width=300, height=400)
 lines = [
-    (50, 750, '增值税专用发票', 18),
-    (50, 710, '销售方名称：上海某某商贸有限公司', 13),
-    (50, 685, '纳税人识别号：91310000MA1GH5XF2B', 13),
-    (50, 660, '开票日期：2026年04月15日', 13),
-    (50, 635, '合计：¥1,234.50', 13),
-    (50, 610, '税率：13%', 13),
+    (25, 375, '增值税专用发票', 12),
+    (25, 355, '销售方名称：上海某某商贸有限公司', 9),
+    (25, 338, '纳税人识别号：91310000MA1GH5XF2B', 9),
+    (25, 322, '开票日期：2026年04月15日', 9),
+    (25, 306, '合计：¥1,234.50', 9),
+    (25, 290, '税率：13%', 9),
 ]
 for x, y, text, size in lines:
     if os.path.exists(font_path):
         page_src.insert_text((x, y), text, fontsize=size, fontfile=font_path, fontname='CJK')
     else:
         page_src.insert_text((x, y), text, fontsize=size)
-pix = page_src.get_pixmap(matrix=fitz.Matrix(2, 2))
 
-# Step 2: embed pixmap as an image in a new PDF (no text layer)
+# Rasterize at 1.5x with JPEG compression (450x600 px)
+pix = page_src.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
+
+# Step 2: embed pixmap as JPEG image in a new PDF (no text layer)
 doc_out = fitz.open()
-page_out = doc_out.new_page(width=600, height=800)
-page_out.insert_image(fitz.Rect(0, 0, 600, 800), stream=pix.tobytes("png"))
+page_out = doc_out.new_page(width=300, height=400)
+page_out.insert_image(fitz.Rect(0, 0, 300, 400), stream=pix.tobytes("jpeg", jpg_quality=75))
 assert page_out.get_text().strip() == '', "unexpected text layer"
-doc_out.save('aa-ocr/tests/fixtures/scanned_invoice.pdf')
+doc_out.save(
+    'aa-ocr/tests/fixtures/scanned_invoice.pdf',
+    garbage=4, deflate=True, deflate_images=True
+)
 print('scanned_invoice.pdf created')
 EOF
 ```

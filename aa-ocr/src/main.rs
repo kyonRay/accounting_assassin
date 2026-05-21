@@ -36,7 +36,12 @@ fn main() {
             fields: extract_fields(""),
             raw_text: String::new(),
         };
-        println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&output).unwrap_or_else(|e| {
+                format!(r#"{{"error":"json serialization failed: {}"}}"#, e)
+            })
+        );
         process::exit(2);
     }
 

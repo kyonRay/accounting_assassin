@@ -127,24 +127,51 @@ fn date_re() -> &'static Regex {
 fn amount_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        // Matches amounts in Chinese invoices:
-        //   合计: ¥ 1,234.50   |   价税合计 1234.50   |   金额：￥1234.50
+        // Matches grand-total amounts in Chinese invoices.
+        // Priority order (left-to-right in alternation):
+        //   价税合计 — "price + tax total" (most specific, preferred)
+        //   合计金额 — "total amount"
+        //   合计     — "total"
+        //   金额     — "amount"
+        //   小计     — "subtotal"
+        // NOTE: 税额 ("tax amount") is intentionally excluded — it is the VAT
+        // component, not the grand total, and matching it first caused wrong results.
         // The leading ¥/￥ is optional; commas within the integer part are stripped.
         Regex::new(
-            r"(?:合计|金额|价税合计|小计|税额)[^\d¥￥]*[¥￥]?\s*([\d,]+(?:\.\d{1,2})?)",
+            r"(?:价税合计|合计金额|合计|金额|小计)[^\d¥￥]*[¥￥]?\s*([\d,]+(?:\.\d{1,2})?)",
         )
         .expect("amount regex is valid")
     })
 }
 
-fn vendor_re() -> &'static Regex {
+fn vendor_re_seller_explicit() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        // Matches vendor name lines such as:
-        //   销售方名称：上海某某商贸有限公司
-        //   名称: 北京示例科技有限公司
-        // Captures the remainder of the line after the label.
-        Regex::new(r"(?:销售方名称|名称|单位名称)[：:]\s*([^\n\r]+)").expect("vendor regex is valid")
+        // Tier-1: explicit seller label — "销售方名称：" or "销售方 名称："
+        // Confidence 0.85 when matched.
+        Regex::new(r"销售方\s*名称[：:]\s*([^\n\r]+)").expect("vendor seller-explicit regex is valid")
+    })
+}
+
+fn vendor_re_name_after_seller_context() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        // Tier-2: bare "名称：" that follows "销售方" within ~30 chars (same block).
+        // Uses a look-behind-style approach: capture a line that starts with 名称 when
+        // the text preceding it (up to ~30 chars) contains 销售方.
+        // We do this with a single regex that matches "销售方" ... "名称：<value>"
+        // where "..." is up to 40 chars (no newline).
+        Regex::new(r"销售方[^\n\r]{0,40}?\n[^\n\r]{0,10}名称[：:]\s*([^\n\r]+)")
+            .expect("vendor seller-context regex is valid")
+    })
+}
+
+fn vendor_re_fallback() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        // Tier-3 fallback: bare "名称" / "单位名称" label with no buyer-context check.
+        // Used only when no buyer-side marker (购买方/购方) is present.
+        Regex::new(r"(?:名称|单位名称)[：:]\s*([^\n\r]+)").expect("vendor fallback regex is valid")
     })
 }
 
@@ -191,25 +218,55 @@ fn extract_date(text: &str) -> Field<String> {
 
 fn extract_amount(text: &str) -> Field<f64> {
     let re = amount_re();
-    if let Some(caps) = re.captures(text) {
+    // Collect ALL matches; prefer the largest value (heuristic: grand total is largest).
+    let mut best: Option<f64> = None;
+    for caps in re.captures_iter(text) {
         let raw = caps.get(1).map_or("", |m| m.as_str());
-        // Remove commas (thousand separators)
         let normalized = raw.replace(',', "");
         if let Ok(val) = normalized.parse::<f64>() {
-            return Field::found_with_currency(val, 0.88, "CNY");
+            best = Some(match best {
+                Some(prev) if prev >= val => prev,
+                _ => val,
+            });
         }
     }
-    Field::<f64>::missing("未识别")
+    if let Some(val) = best {
+        Field::found_with_currency(val, 0.88, "CNY")
+    } else {
+        Field::<f64>::missing("未识别")
+    }
 }
 
 fn extract_vendor(text: &str) -> Field<String> {
-    let re = vendor_re();
-    if let Some(caps) = re.captures(text) {
+    // Tier-1: explicit "销售方名称：" label — confidence 0.85
+    if let Some(caps) = vendor_re_seller_explicit().captures(text) {
         let name = caps.get(1).map_or("", |m| m.as_str()).trim().to_string();
         if !name.is_empty() {
-            return Field::found(name, 0.81);
+            return Field::found(name, 0.85);
         }
     }
+
+    // Tier-2: bare "名称：" following a "销售方" line — confidence 0.65
+    if let Some(caps) = vendor_re_name_after_seller_context().captures(text) {
+        let name = caps.get(1).map_or("", |m| m.as_str()).trim().to_string();
+        if !name.is_empty() {
+            return Field::found(name, 0.65);
+        }
+    }
+
+    // Tier-3 fallback: bare "名称"/"单位名称" label, but ONLY when the document
+    // contains no buyer-side marker (购买方/购方) — avoids picking the buyer name
+    // on two-party VAT invoices that list buyer before seller.
+    let has_buyer_marker = text.contains("购买方") || text.contains("购方");
+    if !has_buyer_marker {
+        if let Some(caps) = vendor_re_fallback().captures(text) {
+            let name = caps.get(1).map_or("", |m| m.as_str()).trim().to_string();
+            if !name.is_empty() {
+                return Field::found(name, 0.55);
+            }
+        }
+    }
+
     Field::missing("未识别")
 }
 
@@ -298,6 +355,23 @@ mod tests {
     }
 
     #[test]
+    fn amount_prefers_grand_total_over_tax() {
+        // A real VAT invoice contains 金额 (pre-tax), 税额 (tax component), and
+        // 价税合计 (grand total).  We must return the grand total, not 税额.
+        let text = "
+        金额：1073.89
+        税额：160.61
+        价税合计：1234.50
+    ";
+        let fields = extract_fields(text);
+        assert!(
+            fields.amount.value.unwrap_or(0.0) > 1200.0,
+            "expected grand total ~1234.50, got {:?}",
+            fields.amount.value
+        );
+    }
+
+    #[test]
     fn extracts_vendor_from_label() {
         let f = extract_vendor(SAMPLE_INVOICE);
         assert_eq!(f.value.as_deref(), Some("上海某某商贸有限公司"));
@@ -315,6 +389,28 @@ mod tests {
         let f = extract_vendor("no vendor here");
         assert!(f.value.is_none());
         assert_eq!(f.reason.as_deref(), Some("未识别"));
+    }
+
+    #[test]
+    fn extracts_vendor_seller_not_buyer() {
+        // Standard two-party VAT invoice: buyer block appears FIRST, then seller block.
+        // The extractor must return the SELLER name, not the buyer name.
+        let text = "
+        购买方
+        名称：某客户有限公司
+        纳税人识别号：91310000XXXXXXXXX1
+
+        销售方
+        名称：上海某某商贸有限公司
+        纳税人识别号：91310000XXXXXXXXX2
+    ";
+        let fields = extract_fields(text);
+        assert_eq!(
+            fields.vendor.value,
+            Some("上海某某商贸有限公司".to_string()),
+            "expected SELLER name; got {:?}",
+            fields.vendor.value
+        );
     }
 
     #[test]
