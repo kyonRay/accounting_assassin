@@ -3,6 +3,8 @@ import { WelcomeFlow } from "@/components/WelcomeFlow";
 import { Sidebar } from "@/components/Sidebar";
 import { LessonViewer } from "@/modules/LessonViewer";
 import { Terminal, type TerminalApi } from "@/modules/Sandbox";
+import { ModeIndicator } from "@/components/ModeIndicator";
+import { ModeTransition } from "@/components/ModeTransition";
 import { CHAPTERS } from "@/curriculum";
 
 export default function App() {
@@ -10,6 +12,8 @@ export default function App() {
   const completeOnboarding = useProgress((s) => s.completeOnboarding);
   const chapters = useProgress((s) => s.chapters);
   const currentChapter = useProgress((s) => s.currentChapter);
+  const progressMode = useProgress((s) => s.mode);
+  const setCurrentChapter = useProgress((s) => s.setCurrentChapter);
 
   if (!hasCompletedOnboarding) {
     return <WelcomeFlow onComplete={completeOnboarding} />;
@@ -28,6 +32,31 @@ export default function App() {
     (c) => c.status === "completed",
   ).length;
 
+  // Mode-switch ritual per spec § 6.3:
+  // Show ModeTransition full-screen overlay when the user navigates to a
+  // real-env chapter while still in sandbox mode.
+  const currentChapterMeta = CHAPTERS.find((c) => c.slug === chapterSlug);
+  const needsModeSwitch =
+    currentChapterMeta?.mode === "real" && progressMode === "sandbox";
+
+  if (needsModeSwitch) {
+    // Find the last sandbox chapter for the cancel path
+    const lastSandboxChapter =
+      CHAPTERS.filter((c) => c.mode === "sandbox").at(-1)?.slug ??
+      CHAPTERS[0].slug;
+
+    return (
+      <ModeTransition
+        onConfirm={() => {
+          // ModeTransition already called setMode("real") before calling onConfirm.
+          // Nothing extra needed here; App will re-render with progressMode==="real"
+          // and the needsModeSwitch guard will be false.
+        }}
+        onCancel={() => setCurrentChapter(lastSandboxChapter)}
+      />
+    );
+  }
+
   return (
     <div
       className={[
@@ -43,10 +72,13 @@ export default function App() {
         <LessonViewer slug={chapterSlug} />
       </main>
 
-      <aside className="row-span-1 bg-sandbox/5 border-l border-graphite/10 p-4 flex flex-col gap-3">
-        <span className="inline-block self-start px-2 py-1 rounded-md bg-sandbox/10 text-sandbox text-xs">
-          🧪 沙箱模式
-        </span>
+      <aside
+        className={[
+          "row-span-1 border-l border-graphite/10 p-4 flex flex-col gap-3",
+          progressMode === "real" ? "bg-realenv/5" : "bg-sandbox/5",
+        ].join(" ")}
+      >
+        <ModeIndicator />
         <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-graphite/10">
           <Terminal
             onInput={(line) => console.log("user:", line)}
