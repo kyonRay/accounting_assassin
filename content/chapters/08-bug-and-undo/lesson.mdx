@@ -1,0 +1,556 @@
+# 第 8 章 · Bug 来了怎么办：Debug + 撤销
+
+---
+
+## 1. Bug 不是失败，是对话
+
+<Callout type="insight" title="心态先行：Bug 是线索，不是指责">
+你刚在第 7 章写出了自己第一个真实脚本。
+
+接下来一定会发生这件事：脚本报错了。屏幕上一大段红色英文，看不懂，心里发慌。
+
+深呼吸。
+
+**Bug 不是在说「你很笨」**，它在说「这里有一个线索，我们来一起找」。
+
+每一个程序员——包括写了二十年代码的人——都会遇到 bug。区别只在于他们有一套方法把「惊慌」变成「按步骤处理」。本章就是那套方法。
+</Callout>
+
+<RealStep id="intro-read">
+  读完上面这段话，感受一下这个心态转变：**Bug = 对话线索，不是失败信号**。
+
+  准备好了就点「我跑完了」，继续学后面的具体方法。
+</RealStep>
+
+---
+
+## 2. Traceback 倒着读：5 种常见错误一眼认出
+
+Python 报错时，终端会显示一段叫「Traceback」的信息。很多人看到这段文字就想关掉终端——其实只需要看**最后一行**，它才是真正有用的部分。
+
+**读法：从下往上。**
+
+最后一行是错误类型 + 简短说明。上面的行是调用栈（告诉你错在哪个文件哪一行）。
+
+---
+
+### 5 种你最可能遇到的错误
+
+**1. SyntaxError — 语法错误（括号或引号没配对）**
+
+```
+  File "summarize.py", line 8
+    df = pd.read_csv("invoices.csv"
+                                   ^
+SyntaxError: '(' was never closed
+```
+
+中文解读：括号没闭合。找到报错行，数一下括号数量。
+
+怎么问 AI：「第 8 行的 SyntaxError，说括号没闭合，帮我找一下哪里括号少了」
+
+---
+
+**2. NameError — 名称错误（用了没定义的变量）**
+
+```
+NameError: name 'total_amount' is not defined
+```
+
+中文解读：你用了一个还没赋值的变量名 `total_amount`。可能是拼写错误，也可能是漏了赋值那一行。
+
+怎么问 AI：「NameError 说 total_amount 没定义，帮我找一下是不是拼写错了」
+
+---
+
+**3. TypeError — 类型错误（数字和字符串混在一起运算）**
+
+```
+TypeError: unsupported operand type(s) for +: 'int' and 'str'
+```
+
+中文解读：你把数字和字符串加在一起了（比如 `100 + "元"`）。通常是 CSV 里的数字列被读成了字符串。
+
+怎么问 AI：「TypeError 说 int 和 str 不能相加，我的金额列是字符串类型，帮我转成数字」
+
+---
+
+**4. KeyError — 字典键不存在（列名写错）**
+
+```
+KeyError: 'amount'
+```
+
+中文解读：你的代码里用了列名 `'amount'`，但 CSV 里没有这个列名（可能叫 `'金额'` 或 `'Amount'`，大小写不一样）。
+
+怎么问 AI：「KeyError 说没有 amount 这个列，帮我看一下 CSV 实际的列名是什么」
+
+---
+
+**5. FileNotFoundError — 文件路径不对**
+
+```
+FileNotFoundError: [Errno 2] No such file or directory: 'invoices.csv'
+```
+
+中文解读：Python 找不到这个文件。可能是文件名写错了，或者你在错误的目录下运行了脚本。
+
+怎么问 AI：「FileNotFoundError 说找不到 invoices.csv，脚本在 scripts/ 目录，文件在 invoices/ 目录，帮我改一下路径」
+
+---
+
+<Callout type="tip" title="还有看不懂的错误？">
+遇到上面五种之外的报错，直接把整段 Traceback 粘给 Claude Code，说「帮我解释这个报错，用中文，告诉我怎么改」。
+
+你不需要记住所有错误类型——你只需要知道「最后一行是重点，全文粘给 AI」。
+</Callout>
+
+---
+
+## 3. 四段式 Bug 报告模板
+
+### 为什么需要模板？
+
+「脚本跑不通」这个描述对 AI 来说没什么用。「我期望 ___，实际 ___，报错是 ___，我试过 ___」这个结构能让 AI 一次就给出准确的修复方案，省去来回问的时间。
+
+### 模板格式
+
+```
+【期望】
+我让脚本把 invoices.csv 里的发票按类目汇总到 summary.xlsx
+
+【实际】
+脚本跑出来 summary.xlsx 是空的，什么都没有
+
+【报错原文】（整段复制，不要删英文）
+Traceback (most recent call last):
+  File "summarize.py", line 12, in <module>
+    df = pd.read_csv("invoices.csv")
+  ...
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0xb7
+
+【我试过的】
+- 我又跑了一次，还是一样
+- 我打开了 invoices.csv，看着挺正常
+```
+
+### 动手：试用模板
+
+下面这张卡片就是你的 Bug 报告工具。遇到 bug 时，在这里填好四段内容，点「复制到剪贴板」，直接粘给 Claude Code。
+
+<BugReportCard
+  defaultExpected="（示例）我让脚本把 invoices.csv 里的发票按类目汇总到 summary.xlsx"
+  defaultActual="（示例）脚本跑出来 summary.xlsx 是空的，什么都没有"
+  defaultTried="- 我又跑了一次，还是一样"
+/>
+
+<RealStep id="template-tried">
+  试着在上方的模板卡片里填写一次（哪怕是随便填一个示例也可以），感受一下这个工具的操作流程。
+
+  填好后点「复制到剪贴板」，然后点「我跑完了」。
+</RealStep>
+
+---
+
+## 4. 标准工作流：从出 Bug 到解决
+
+下面这张流程图就是你的「Bug 处理海报」——出了问题，就从第一步开始走：
+
+<DebugFlowchart />
+
+把这张流程图当成你的标准操作手册。不需要背，遇到 bug 就回来看。
+
+---
+
+## 5. Git 作为安全网
+
+### 事前快照：改之前先存档
+
+**每次把 bug 交给 AI 去修之前，先执行一次快照：**
+
+```bash
+git commit -am "before retry"
+```
+
+这一步只需要 3 秒，但它让你可以随时回退。如果 AI 修复方案让脚本变得更糟，你不会丢失任何东西。
+
+### 事后检查：AI 改完后先看再用
+
+AI 改完代码后，**不要直接就认为修好了**——先检查：
+
+```bash
+git status          # 看 AI 改了哪些文件
+git diff            # 看每个文件改了哪些行
+```
+
+然后自己跑一遍脚本，亲眼看到正确的输出才算修好。
+
+### 如果 AI 改坏了：三选一
+
+**情况一：全部不要，回到原始版本**
+
+```bash
+git restore .
+```
+
+这个命令把所有未提交的修改全部撤销，回到上一次 `git commit` 时的状态。
+
+如果 AI 还创建了新文件，用交互式 `git clean` 来选择性删除：
+
+```bash
+git clean -i
+```
+
+**情况二：部分要，跟 AI 继续细化**
+
+如果 AI 的修改有些对、有些不对，跟它说：「你改的第 12 行我觉得不对，其他改动保留，第 12 行帮我重新考虑一下」
+
+每一轮尝试都做一次 `git commit -am "retry N"`，最多重试 3 次。
+
+**情况三：完全卡住**
+
+超过 3 次还没解决，点右下角的「我卡住了」按钮。
+
+<Callout type="warn" title="⚠️ 禁止使用 git checkout .">
+你可能在其他地方看到过 `git checkout .` 这个命令。**不要在这里用它。**
+
+`git checkout` 是一个语义重载的命令——它既可以切换分支，也可以撤销文件修改，含义随上下文变化。更危险的是，它会**静默丢弃未跟踪的修改**，没有任何确认步骤。
+
+安全的替代：
+- 撤销已跟踪文件的修改 → `git restore .`
+- 删除新创建的未跟踪文件 → `git clean -i`（`-i` = interactive，会逐一确认）
+
+本课程所有章节统一使用 `git restore .`，不使用 `git checkout .`。
+</Callout>
+
+---
+
+## 6. 什么时候该停下来
+
+### 三次尝试原则
+
+遇到 bug，按照以下顺序处理：
+
+1. 第 1 次：用四段式模板写清楚，让 AI 修复
+2. 第 2 次：如果第 1 次没解决，加上「上次你给的方案是 _____，仍然有问题」
+3. 第 3 次：换一个角度描述问题，或者把脚本全文粘出来请 AI 整体审查
+
+**三次之后还没解决，就停下来，找老公。**
+
+### 什么时候应该直接找老公（不等三次）
+
+1. **报错信息里全是看不懂的英文，不知道从哪里开始描述**
+2. **AI 每次给的方案都不一样，感觉它在瞎猜**
+3. **脚本在你的电脑上完全不动（连 python3 都找不到）**
+
+这些情况不是你的问题——可能是环境配置需要调整，这类问题点「我卡住了」或找老公会更快解决。
+
+---
+
+## 7. 练习 1：编码 Bug
+
+### 场景
+
+你的同事发给你一份报销明细，是 GBK 编码的 CSV 文件（Windows/WPS 导出的 Excel 经常是这个格式）。你写了一个 Python 脚本来读取它，但一运行就报错。
+
+### 动手步骤
+
+**第一步：把练习文件复制到你的工作目录**
+
+```bash
+cp ~/Library/Application\ Support/AccountingAssassin/fixtures/bad_encoding.csv \
+   ~/accounting-learner/invoices/bad_encoding.csv
+```
+
+如果找不到这个路径，也可以用 Python 直接生成：
+
+```bash
+python3 - << 'EOF'
+content = '类目,金额,日期,备注\n办公用品,120.00,2025-01-15,打印纸\n交通费,380.50,2025-01-20,出差火车票\n'
+with open('/Users/$(whoami)/accounting-learner/invoices/bad_encoding.csv', 'wb') as f:
+    f.write(content.encode('gbk'))
+print('文件已生成')
+EOF
+```
+
+**第二步：写一个故意用错编码的脚本**
+
+```bash
+cd ~/accounting-learner && claude
+```
+
+在 Claude Code 里说：
+
+```
+帮我在 scripts/ 目录写一个 read_expenses.py 脚本，
+用 pandas 读取 invoices/bad_encoding.csv 并打印出来。
+暂时不要指定 encoding 参数。
+```
+
+Claude 会写一个默认用 UTF-8 读取的脚本。
+
+**第三步：运行，让它报错**
+
+```bash
+python3 ~/accounting-learner/scripts/read_expenses.py
+```
+
+你应该会看到类似这样的报错：
+
+```
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0xb7 in position 6: invalid start byte
+```
+
+**第四步：用四段式模板整理，交给 AI 修复**
+
+填写上方的 BugReportCard：
+
+- 【期望】：脚本读取 bad_encoding.csv 并打印表格内容
+- 【实际】：报 UnicodeDecodeError，什么都没打印出来
+- 【报错原文】：把整段 Traceback 粘进去
+- 【我试过的】：我直接运行了脚本，没有做其他修改
+
+复制后粘给 Claude，它会建议你加上 `encoding='gbk'` 参数。
+
+**第五步：验证修复**
+
+重新运行脚本，应该能看到正确的中文输出。
+
+<RealStep
+  id="exercise-1-encoding-fixed"
+  command="python3 ~/accounting-learner/scripts/read_expenses.py"
+>
+  按照上面的步骤，完成从「报错」到「修复验证」的完整流程。
+
+  成功看到中文表格输出后，点「我跑完了」。
+</RealStep>
+
+---
+
+## 8. 练习 2：静默 Bug（合并单元格）
+
+### 场景
+
+有一类 bug 更危险：**脚本跑通了、没有报错，但输出的数字是错的**。财务工作里这类 bug 风险极高——如果你不对数，就会拿着错误的数字做决策。
+
+### 合并单元格问题
+
+Excel 里的合并单元格很常见（比如把多行的"类目"合并成一格），但 pandas 读取时：
+
+- 合并单元格只有第一行有值
+- 后续合并的行全部变成 `NaN`（空值）
+- `groupby` 汇总时，`NaN` 那些行被跳过，导致合计数字偏小
+
+**结果：脚本没报错，但少算了钱。**
+
+### 「对数」验证方法
+
+**永远用独立方法验证脚本输出：**
+
+1. 运行脚本，得到汇总结果（比如总计 ¥2,094.50）
+2. 打开 Excel/WPS，用鼠标框选金额列，看状态栏里的求和
+3. 两个数字对比——不一样说明脚本漏了某些行
+
+这个习惯叫「对数」，是财务工作里的基本功，现在也是 AI 辅助工作的基本功。
+
+<Callout type="warn" title="不要相信脚本输出，要对数">
+AI 写的代码可能逻辑正确但漏掉了某些边界情况（比如合并单元格、隐藏行、小计行）。
+
+养成「对数」习惯：每次脚本汇总完，用一个独立的方式（计算器、Excel 手动框选）验证一次总金额。误差超过 1 元就重新检查。
+</Callout>
+
+### 动手：制造并发现静默 bug
+
+**第一步：用 WPS 或 Excel 创建一个有合并单元格的表格**
+
+创建一个简单的 `test_merged.xlsx`，结构如下（把 A2 和 A3 合并，填"办公用品"）：
+
+| 类目 | 金额 |
+|------|------|
+| 办公用品（A2:A3 合并） | 120 |
+| （空，因为合并了） | 88 |
+| 交通费 | 380 |
+
+**第二步：让 Claude 写一个汇总脚本**
+
+```
+帮我写一个脚本，读取 test_merged.xlsx，
+按类目汇总金额，输出每个类目的合计。
+```
+
+**第三步：运行 → 对数**
+
+脚本输出的"办公用品"合计应该是 208（120+88）。
+但如果有合并单元格，pandas 会漏掉 88，输出 120。
+
+手动用 Excel 状态栏验证总金额：Excel 显示 588，脚本显示 500。发现不对了。
+
+**第四步：用四段式模板告诉 AI**
+
+```
+【期望】
+按类目汇总金额，办公用品应该是 208
+
+【实际】
+脚本输出办公用品是 120，总计也少了
+
+【报错原文】
+（这次没有报错，直接把脚本代码和输出粘出来）
+
+【我试过的】
+- 我手动在 Excel 里用状态栏验证了总金额是 588
+- 脚本输出总计是 500
+- 少了 88
+```
+
+让 AI 帮你加上 `ffill()` 处理合并单元格。
+
+<RealStep id="exercise-2-silent-sum-fixed">
+  按照上面的步骤，实践「对数」方法，发现并修复合并单元格导致的静默 bug。
+
+  成功让脚本输出正确金额后，点「我跑完了」。
+</RealStep>
+
+---
+
+## 9. 练习 3：AI 越改越坏 → Git Restore 受控回退
+
+### 场景
+
+这是 AI 辅助编程里最常见、也最容易让人沮丧的情况：
+
+你的脚本一开始能跑，然后你让 AI 加功能，AI 越改越复杂，某一步突然完全跑不动了。你不知道从第几次改动开始出了问题，也不知道怎么回到「能跑的版本」。
+
+**这正是 Git 存在的理由。**
+
+### 动手：主动制造这个问题（然后优雅地解决它）
+
+**第一步：有一个能正常运行的简单脚本**
+
+```bash
+cd ~/accounting-learner && claude
+```
+
+说：
+
+```
+帮我在 scripts/ 目录写一个简单的 simple_sum.py，
+只做一件事：读取 invoices/ 目录里所有 CSV 文件，
+打印每个文件的行数。
+用标准库，不要 pandas。
+```
+
+确认脚本能运行后，先存档：
+
+```bash
+cd ~/accounting-learner && git add scripts/simple_sum.py && git commit -m "add simple_sum.py"
+```
+
+**第二步：开始「过度优化」的循环**
+
+连续让 AI 添加功能，刻意不每次 commit：
+
+第 1 轮：「帮我给这个脚本加上汇总金额的功能」
+
+第 2 轮：「帮我加上按日期过滤的功能，接受命令行参数 --date」
+
+第 3 轮：「帮我把输出格式改成 JSON，并且加上错误处理」
+
+**每次修改后不要跑脚本——模拟现实里「AI 说改好了就信了」的情况。**
+
+**第三步：发现脚本跑不了了**
+
+```bash
+python3 ~/accounting-learner/scripts/simple_sum.py
+```
+
+如果报错（很可能报 IndentationError 或 SyntaxError），不要慌。
+
+**第四步：检查发生了什么**
+
+```bash
+cd ~/accounting-learner
+git status     # 看哪些文件被修改了
+git diff       # 看具体改了哪些行
+```
+
+观察一下：AI 添加的代码比原来复杂很多，而且引入了 bug。
+
+**第五步：决定要不要保留**
+
+问自己：这些改动里有没有你真的需要的部分？
+
+**如果全部不要，回到最初能跑的版本：**
+
+```bash
+git restore .
+```
+
+然后运行 `python3 ~/accounting-learner/scripts/simple_sum.py`，脚本恢复正常。
+
+**如果部分想要：**
+
+看 `git diff` 的输出，决定哪些行要保留，跟 AI 说「只保留 ___ 这个功能，其他的去掉，重新写一个干净的版本」。
+
+**第六步：从干净版本重新开始，一次只加一个功能**
+
+```bash
+git commit -am "clean base before adding features"
+```
+
+然后一次只加一个功能，每次加完都 `git commit`，这样就有了多个安全的回退点。
+
+<Callout type="insight" title="正确的 AI 编程节奏">
+不要一次让 AI 改太多——「帮我把脚本加上 A、B、C、D 四个功能」往往比四次「帮我加 A」→「帮我加 B」→... 出更多 bug，也更难调试。
+
+每加一个功能，跑一次，确认没问题，`git commit`。保持小步快走。
+</Callout>
+
+<RealStep
+  id="exercise-3-git-rollback-done"
+  command="cd ~/accounting-learner && git restore . && python3 scripts/simple_sum.py"
+>
+  按照上面的步骤，主动制造「AI 越改越坏」的场景，然后用 `git restore .` 恢复到干净版本，确认脚本重新可以运行。
+
+  成功恢复并验证后，点「我跑完了」。
+</RealStep>
+
+---
+
+## 本章回顾
+
+| 工具 / 方法 | 什么时候用 |
+|---|---|
+| Traceback 最后一行 | 任何 Python 报错，从这里读起 |
+| 四段式 Bug 报告模板 | 准备把 bug 交给 AI 处理时 |
+| `git commit -am "before retry"` | 每次让 AI 改代码之前 |
+| `git status` / `git diff` | AI 改完后，先检查改了哪些 |
+| `git restore .` | AI 改坏了，全部撤销，重来 |
+| 对数验证 | 脚本跑通后，独立验证输出数字 |
+| 三次原则 | 三次还没解决 → 停下来找老公 |
+
+---
+
+## 彩蛋：专业版的 systematic-debugging
+
+你刚学的这套方法——深呼吸、读报错、四段式模板、三次原则——是专门为初学者设计的简化版。
+
+Claude Code 内置了一个更完整的调试技能，叫 **`systematic-debugging`**。它用在更复杂的 bug 场景里：比如逻辑 bug 没有报错信息，或者多文件交互导致的问题。
+
+等你有了更多使用 Claude Code 的经验之后，可以这样调用它：
+
+```
+用 systematic-debugging 帮我
+```
+
+Claude 会启动一个结构化的调试流程，比本章的方法更系统，也更适合复杂的 bug。
+
+<RealStep id="forward-ref-noted">
+  了解了！等遇到复杂 bug 时，记得可以调用 `systematic-debugging` 技能。
+
+  现在点「我跑完了」，完成本章。
+</RealStep>
+
+---
+
+下一章（Ch 9）我们来看 **Hooks 和自动化**——让 Claude Code 在你做某些操作时自动帮你跑检查，把一些重复操作变成「出门前自动锁门」。
