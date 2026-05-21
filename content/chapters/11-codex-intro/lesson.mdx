@@ -1,0 +1,200 @@
+# 第 11 章 · Codex 入门
+
+<Callout type="warn" title="没有 ChatGPT Plus/Pro 订阅？先看这里">
+Codex CLI 需要 ChatGPT Plus、Pro、Business、Enterprise 或 Edu 订阅才能登录使用。
+
+如果你目前还没有订阅，完全没问题——**第 11、12 章可以临时用 Claude Code 演示同样的任务**，概念照常学。等以后你有了订阅，再回来跑一遍 Codex 部分即可。
+
+遇到这种情况时，只需跳过「安装」和「登录」两步，把 `codex` 命令替换成 `claude`，用 Claude Code 完成同样的银行流水分类任务——体验到的工作流 99% 相同。
+</Callout>
+
+---
+
+## 1. 认识你的第二位 AI 同事
+
+到目前为止，Claude Code 一直是你的 AI 搭档。从第 11 章开始，你要认识一位新同事：**Codex CLI**（由 OpenAI 出品）。
+
+**重要前提：Codex 不是"Claude 2.0"。**
+
+它们是两个来自不同公司、设计理念略有差异的 AI 编码助手，就像两个都很能干、但工作风格不同的同事：
+
+| | Claude Code | Codex CLI |
+|---|---|---|
+| 出品方 | Anthropic | OpenAI |
+| 交互风格 | 倾向多问一句确认 | 默认更静默地直接动手 |
+| 工具调用展示 | 较详细，实时滚动 | 更紧凑，完成后汇报 |
+| 适合场景 | 对话探索、边想边做 | 明确任务、批量处理 |
+
+两者**没有优劣之分**——都是你工具箱里的工具。本章目标是：装上它、跑一次真实任务、感受一下它的工作风格。
+
+---
+
+## 2. 安装 Codex CLI
+
+Codex CLI 可以通过 npm 或 Homebrew 安装，两种方式都是官方支持的。
+
+<RealStep
+  id="codex-installed"
+  expectsCli="Codex"
+  command="npm install -g @openai/codex"
+>
+  在终端里运行上面的 npm 命令（推荐，跨平台一致）。
+
+  **或者**，如果你更习惯 Homebrew：
+
+  ```bash
+  brew install --cask codex
+  ```
+
+  安装完成后，验证一下：
+
+  ```bash
+  codex --version
+  ```
+
+  你会看到类似 `codex 0.x.x` 的版本号输出。
+
+  <Callout type="tip" title="npm 提示「permission denied」？">
+  如果 npm 全局安装报权限错误，尝试先用 nvm 管理 Node 版本（避免 sudo npm）：
+
+  ```bash
+  # 如果还没安装 nvm
+  brew install nvm
+  # 然后重新运行 npm install -g @openai/codex
+  ```
+
+  或者直接用 Homebrew 那一行代替。
+  </Callout>
+
+  看到版本号之后，点「我跑完了」。
+</RealStep>
+
+---
+
+## 3. 登录——让 Codex 知道你是谁
+
+Codex CLI 通过你的 ChatGPT 账号来验证身份。
+
+<Callout type="warn" title="需要 ChatGPT Plus / Pro / Business / Edu / Enterprise 订阅">
+免费的 ChatGPT 账号无法使用 Codex CLI。
+
+如果你没有上述订阅，请参考本章顶部的降级说明——用 Claude Code 演示同样的任务，回头再补 Codex 部分。
+
+你也可以用 OpenAI API Key 登录（无需 ChatGPT 订阅，但需要在 platform.openai.com 充值）：
+```bash
+codex --provider openai --api-key sk-...
+```
+</Callout>
+
+<RealStep
+  id="codex-logged-in"
+  command="codex login"
+>
+  在终端里运行上面的命令。
+
+  Codex 会打开浏览器，带你完成 ChatGPT 授权流程：
+
+  1. 浏览器里选择「Sign in with ChatGPT」
+  2. 用你的 ChatGPT 账号登录
+  3. 授权 Codex CLI 访问
+  4. 回到终端，看到类似 `✓ Logged in as your@email.com` 的确认信息
+
+  登录成功之后，点「我跑完了」。
+</RealStep>
+
+---
+
+## 4. 第一次真实任务：银行流水分类
+
+### 任务背景
+
+你每月都有一份银行流水 CSV，里面几十行收支记录，每行都需要打上支出类目（餐饮、交通、快递、办公、其它）。这是会计工作里最枯燥的重复任务之一——Codex 很擅长做这类事。
+
+### 如果你还没有银行流水 CSV
+
+没关系。先让 Codex 帮你生成一份样例 CSV 用来练习：
+
+```
+帮我在 outputs/ 目录下生成一个 bank_2026-04.csv 文件，
+包含 6 行样例银行流水数据，格式：日期,摘要,金额(元)
+摘要内容包含：餐厅、滴滴、京东快递、办公用品、外卖、停车费
+```
+
+生成完之后再做下面的分类任务。
+
+### 动手：跑分类任务
+
+<RealStep
+  id="codex-first-task-tried"
+  command="cd ~/accounting-learner && codex"
+>
+  打开终端，进入工作目录启动 Codex，然后对它说：
+
+  ```
+  帮我看看 outputs/bank_2026-04.csv，
+  按支出类目把每一行归类（餐饮/交通/快递/办公/其它），
+  输出新文件 outputs/bank_2026-04_classified.csv，
+  新文件在原有列后面增加一列「类目」
+  ```
+
+  **观察 Codex 的工作过程**：
+  - 它是先问你问题，还是直接开始动手？
+  - 工具调用（读文件、写文件）是怎么展示的？
+  - 完成后它怎么汇报结果？
+
+  任务完成、看到 `bank_2026-04_classified.csv` 生成之后，输入 `/exit` 或按 `Ctrl+C` 退出，然后点「我跑完了」。
+
+  <Callout type="tip" title="Codex 提示「No such file」？">
+  如果 Codex 说找不到 CSV 文件，先按上面「生成样例 CSV」的提示让它创建一份，然后再试分类任务。
+
+  也可以把自己真实的银行流水 CSV（手动脱敏处理后）放到 `~/accounting-learner/outputs/` 目录里。
+  </Callout>
+</RealStep>
+
+---
+
+## 5. 观察工作风格差异
+
+这一步不需要在终端里操作——只需要回想刚才跑 Codex 的体验，勾选下面你观察到的现象。
+
+<RealStep
+  id="style-noticed"
+>
+  回想一下刚才 Codex 完成任务的过程，思考以下几点：
+
+  **你可能注意到了：**
+
+  1. **Codex 更倾向于先动手**——它通常不会先问「你确定要这样做吗？」，而是直接开始读文件、写文件，做完再汇报。Claude Code 则更倾向于先确认意图。
+
+  2. **工具调用展示更紧凑**——Codex 的 Read/Write/Bash 调用通常在一个折叠面板里，任务结束后才展开摘要。Claude Code 是实时流式展开。
+
+  3. **错误时的行为不同**——Codex 遇到缺失文件、权限问题时，可能直接尝试修复，而 Claude 通常会先停下来告诉你发生了什么。
+
+  4. **两者都不是"更好"**——Codex 的"静默动手"风格在明确任务时效率高；Claude 的"先问清楚"风格在探索性任务时更安全。
+
+  <Callout type="insight" title="两个 AI 同事，不同的工作节奏">
+  把 Claude Code 想象成一个做事谨慎、喜欢先讨论方案的同事；
+  把 Codex 想象成一个接到任务就开干、做完给你看结果的同事。
+
+  两种风格都有价值——关键是根据任务性质来选择：
+  - 探索性任务、不确定方向时 → Claude Code
+  - 明确的批处理任务、重复操作时 → Codex
+  </Callout>
+
+  读完上面的内容，感受到这两种风格的差异之后，点「我跑完了」。
+</RealStep>
+
+---
+
+## 本章回顾
+
+本章你完成了四件事：
+
+| 里程碑 | 意义 |
+|---|---|
+| 安装了 Codex CLI | 工具箱里多了一位 AI 同事 |
+| 完成 Codex 登录 | Codex 知道你是谁，可以授权使用 |
+| 用 Codex 跑了银行流水分类 | 第一次用第二个 AI 工具完成真实会计任务 |
+| 对比了两者的工作风格 | 建立了「选择合适工具」的判断框架 |
+
+下一章（Ch 12）我们会更深入地使用 Codex——学习如何给它写更精准的任务描述，以及如何在 Codex 和 Claude Code 之间灵活切换。
