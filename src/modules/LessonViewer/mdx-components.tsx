@@ -4,6 +4,8 @@ import { SandboxStep } from "./components/SandboxStep";
 import { ComparisonDemo } from "./components/ComparisonDemo";
 import { MdxQuizRunner } from "../Quiz/MdxQuizRunner";
 import { RealStep } from "@/components/RealStep";
+import { DebugFlowchart } from "@/components/DebugFlowchart";
+import { BugReportCard } from "@/components/BugReportCard";
 
 export const mdxComponents: MDXComponents = {
   // Block elements
@@ -46,4 +48,6 @@ export const mdxComponents: MDXComponents = {
   ComparisonDemo: ComparisonDemo as never,
   QuizRunner: MdxQuizRunner as never,
   RealStep: RealStep as never,
+  DebugFlowchart: DebugFlowchart as never,
+  BugReportCard: BugReportCard as never,
 };
