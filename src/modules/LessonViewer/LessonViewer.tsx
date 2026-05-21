@@ -3,11 +3,16 @@ import { mdxComponents } from "./mdx-components";
 import { useChapter } from "./useChapter";
 import { mapErrorToFriendly } from "./error-messages";
 import { ChapterContext } from "./ChapterContext";
+import { useChapterRunner } from "@/modules/ChapterRunner/useChapterRunner";
+import { ChapterRunnerContext } from "@/modules/ChapterRunner/ChapterRunnerContext";
+import { ChapterCompleteButton } from "@/components/ChapterCompleteButton";
 
 interface Props { slug: string; }
 
 export function LessonViewer({ slug }: Props) {
   const { Lesson, error } = useChapter(slug);
+  const runtime = useChapterRunner(slug);
+
   if (error) {
     const friendly = mapErrorToFriendly(error);
     return (
@@ -26,11 +31,14 @@ export function LessonViewer({ slug }: Props) {
   if (!Lesson) return <div className="text-muted">正在加载...</div>;
   return (
     <ChapterContext.Provider value={{ slug }}>
-      <MDXProvider components={mdxComponents}>
-        <article className="prose prose-zinc max-w-3xl">
-          <Lesson />
-        </article>
-      </MDXProvider>
+      <ChapterRunnerContext.Provider value={runtime}>
+        <MDXProvider components={mdxComponents}>
+          <article className="prose prose-zinc max-w-3xl">
+            <Lesson />
+          </article>
+        </MDXProvider>
+        <ChapterCompleteButton />
+      </ChapterRunnerContext.Provider>
     </ChapterContext.Provider>
   );
 }

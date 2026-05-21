@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { Sidebar } from "@/components/Sidebar";
 import { useProgress } from "@/modules/Progress";
 import { computeChapterStates } from "@/curriculum";
@@ -157,5 +157,25 @@ describe("App progressive disclosure", () => {
     const { default: App } = await import("@/App");
     render(<App />);
     expect(screen.getByTestId("sidebar")).toBeInTheDocument();
+  });
+
+  it("sidebar reveals after markChapterCompleted is called programmatically", async () => {
+    // Start with Ch 1 NOT completed
+    useProgress.setState({
+      hasCompletedOnboarding: true,
+      mode: "sandbox",
+      chapters: {},
+      currentChapter: null,
+    });
+    const { default: App } = await import("@/App");
+    render(<App />);
+    expect(screen.queryByTestId("sidebar")).toBeNull();
+
+    // Programmatically mark Ch 1 as completed (mirrors what ChapterCompleteButton does)
+    act(() => {
+      useProgress.getState().markChapterCompleted("01-ai-tools-vs-chatgpt");
+    });
+
+    expect(await screen.findByTestId("sidebar")).toBeInTheDocument();
   });
 });

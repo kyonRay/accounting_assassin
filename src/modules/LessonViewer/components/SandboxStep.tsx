@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { useOptionalChapterRunner } from "@/modules/ChapterRunner";
 
 export interface SandboxStepProps {
   /** Unique step id within the chapter, used as the vfs marker filename */
@@ -10,7 +11,7 @@ export interface SandboxStepProps {
   hint?: string;
   /** Explanatory content before the button */
   children: ReactNode;
-  /** Called when the learner clicks "我做完了" */
+  /** Called when the learner clicks "我做完了" (secondary escape hatch) */
   onComplete?: (id: string) => void;
 }
 
@@ -22,10 +23,15 @@ export function SandboxStep({
   onComplete,
 }: SandboxStepProps) {
   const [done, setDone] = useState(false);
+  const runtime = useOptionalChapterRunner();
 
-  function handleComplete() {
-    setDone(true);
+  async function handleComplete() {
+    // Write VirtualFs marker when ChapterRunnerContext is present
+    if (runtime) {
+      await runtime.markStep(id);
+    }
     onComplete?.(id);
+    setDone(true);
   }
 
   return (
