@@ -89,7 +89,7 @@ export function RealStep({
         <div className="mt-3 text-xs text-realenv/80 bg-realenv/10 border border-realenv/20 rounded p-2">
           ⚠️ 我没在你的电脑上找到{" "}
           <code className="font-mono">{expectsCli}</code>
-          ，请先回到第 5 章安装
+          ，请按本章前面的步骤完成安装
         </div>
       )}
 
