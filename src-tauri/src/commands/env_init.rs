@@ -86,7 +86,8 @@ pub async fn initialize_real_env() -> Result<InitReport, String> {
     }
 
     // 4. Symlink the aa-ocr binary.
-    let aa_ocr_installed = install_aa_ocr_symlink(&workspace);
+    let source = resolve_aa_ocr_binary();
+    let aa_ocr_installed = install_aa_ocr_symlink(&workspace, source.as_deref());
 
     Ok(InitReport {
         workspace: workspace.display().to_string(),
@@ -98,22 +99,27 @@ pub async fn initialize_real_env() -> Result<InitReport, String> {
 
 /// Symlink the bundled `aa-ocr` binary into `~/accounting-learner/.bin/aa-ocr`.
 ///
+/// `source` is the path to the binary to link.  Pass `None` to indicate the
+/// binary could not be resolved (the function will return `false` in that case).
+///
 /// Returns `true` if the symlink was created / verified successfully,
-/// `false` if the source binary could not be resolved (non-fatal: logged only).
+/// `false` if the source binary is `None` or the symlink operation failed (non-fatal).
 ///
 /// Behaviour:
 /// - Creates `~/accounting-learner/.bin/` if missing.
-/// - If the symlink exists and already points to the correct target → no-op.
+/// - If the symlink exists and already points to the correct target → no-op (idempotent).
 /// - If the symlink exists but points elsewhere → replace.
-/// - If the source binary cannot be found → log warning, return false.
-fn install_aa_ocr_symlink(workspace: &std::path::Path) -> bool {
+/// - If `source` is `None` → log warning, return false.
+///
+/// Taking the source path as an argument makes the function testable without
+/// relying on the current executable layout.
+fn install_aa_ocr_symlink(workspace: &std::path::Path, source: Option<&std::path::Path>) -> bool {
     let bin_dir = workspace.join(".bin");
     if let Err(e) = std::fs::create_dir_all(&bin_dir) {
         eprintln!("aa-ocr symlink: failed to create .bin dir: {}", e);
         return false;
     }
 
-    let source = resolve_aa_ocr_binary();
     let source = match source {
         Some(p) => p,
         None => {
@@ -127,7 +133,7 @@ fn install_aa_ocr_symlink(workspace: &std::path::Path) -> bool {
     let link = bin_dir.join("aa-ocr");
 
     // Check if the symlink already points to the right place (idempotent).
-    if link.exists() {
+    if link.exists() || std::fs::symlink_metadata(&link).is_ok() {
         if let Ok(current_target) = std::fs::read_link(&link) {
             if current_target == source {
                 return true; // Already correct — nothing to do.
@@ -141,7 +147,7 @@ fn install_aa_ocr_symlink(workspace: &std::path::Path) -> bool {
     }
 
     // Create the symlink.
-    match std::os::unix::fs::symlink(&source, &link) {
+    match std::os::unix::fs::symlink(source, &link) {
         Ok(()) => true,
         Err(e) => {
             eprintln!("aa-ocr symlink: failed to create symlink {:?} → {:?}: {}", link, source, e);
@@ -211,76 +217,98 @@ mod tests {
         }
     }
 
-    /// Symlink creation: creates .bin/aa-ocr pointing to a real file.
+    /// Real idempotency test: `install_aa_ocr_symlink` with an explicit source path.
+    ///
+    /// 1. Creates a fake binary in tempdir.
+    /// 2. Calls `install_aa_ocr_symlink` with that source → asserts `true` (created).
+    /// 3. Calls `install_aa_ocr_symlink` again with the same source → asserts `true` (idempotent).
+    /// 4. Verifies the symlink still points to the expected target.
     #[test]
     fn symlink_creation_idempotent() {
         with_fake_home(|tmp| {
             let workspace = tmp.path().join("accounting-learner");
-            // Create a fake aa-ocr binary in tmp
             let fake_bin = tmp.path().join("aa-ocr-fake");
             fs::write(&fake_bin, "#!/bin/sh\necho ok").unwrap();
 
-            // install_aa_ocr_symlink expects the workspace path (not the binary path).
-            // We manually test the symlink logic here because resolve_aa_ocr_binary()
-            // may not find a real binary in the test environment.
-            let bin_dir = workspace.join(".bin");
-            fs::create_dir_all(&bin_dir).unwrap();
-            let link = bin_dir.join("aa-ocr");
+            // First call: should create the symlink and return true.
+            let result1 = install_aa_ocr_symlink(&workspace, Some(&fake_bin));
+            assert!(result1, "first install_aa_ocr_symlink call should return true");
 
-            // First call: creates symlink
-            std::os::unix::fs::symlink(&fake_bin, &link).unwrap();
-            assert!(link.exists());
-            assert_eq!(std::fs::read_link(&link).unwrap(), fake_bin);
+            let link = workspace.join(".bin").join("aa-ocr");
+            assert!(
+                std::fs::symlink_metadata(&link).is_ok(),
+                "symlink should exist after first call"
+            );
+            assert_eq!(
+                std::fs::read_link(&link).unwrap(),
+                fake_bin,
+                "symlink should point to fake_bin"
+            );
 
-            // Second call: already correct — no-op (manually verify idempotency)
-            let target = std::fs::read_link(&link).unwrap();
-            assert_eq!(target, fake_bin, "symlink should still point to the same target");
+            // Second call with same source: should be a no-op and return true.
+            let result2 = install_aa_ocr_symlink(&workspace, Some(&fake_bin));
+            assert!(result2, "second install_aa_ocr_symlink call should also return true (idempotent)");
+
+            // Verify the symlink still points to the correct target after the no-op.
+            assert_eq!(
+                std::fs::read_link(&link).unwrap(),
+                fake_bin,
+                "symlink should still point to fake_bin after idempotent call"
+            );
         });
     }
 
-    /// Symlink replacement: stale symlink is replaced.
+    /// Symlink replacement: stale symlink pointing to a different target is replaced.
     #[test]
     fn symlink_stale_is_replaced() {
         with_fake_home(|tmp| {
             let workspace = tmp.path().join("accounting-learner");
-            let bin_dir = workspace.join(".bin");
-            fs::create_dir_all(&bin_dir).unwrap();
-            let link = bin_dir.join("aa-ocr");
-
             let old_bin = tmp.path().join("old-aa-ocr");
             let new_bin = tmp.path().join("new-aa-ocr");
             fs::write(&old_bin, "#!/bin/sh").unwrap();
             fs::write(&new_bin, "#!/bin/sh\necho new").unwrap();
 
-            // Create stale symlink
-            std::os::unix::fs::symlink(&old_bin, &link).unwrap();
+            // Create symlink pointing to old_bin.
+            let result1 = install_aa_ocr_symlink(&workspace, Some(&old_bin));
+            assert!(result1, "initial symlink install should succeed");
+
+            let link = workspace.join(".bin").join("aa-ocr");
             assert_eq!(std::fs::read_link(&link).unwrap(), old_bin);
 
-            // Replace with new target
-            fs::remove_file(&link).unwrap();
-            std::os::unix::fs::symlink(&new_bin, &link).unwrap();
-            assert_eq!(std::fs::read_link(&link).unwrap(), new_bin);
+            // Call again with new_bin — should replace the stale symlink.
+            let result2 = install_aa_ocr_symlink(&workspace, Some(&new_bin));
+            assert!(result2, "replacement symlink install should succeed");
+            assert_eq!(
+                std::fs::read_link(&link).unwrap(),
+                new_bin,
+                "symlink should now point to new_bin"
+            );
         });
     }
 
-    /// Missing binary: install_aa_ocr_symlink returns false when binary not found.
+    /// Missing binary: `install_aa_ocr_symlink` with `source = None` returns `false`.
+    ///
+    /// The `.bin/` directory should still be created (so the workspace layout is
+    /// consistent regardless of binary availability), but the function returns false.
     #[test]
     fn missing_binary_returns_false() {
         with_fake_home(|tmp| {
             let workspace = tmp.path().join("accounting-learner");
-            // Don't create a real aa-ocr binary — resolve should return None
-            // in dev mode if target/debug/aa-ocr doesn't exist.
-            // We can't easily control resolve_aa_ocr_binary() in test, so we
-            // just verify install_aa_ocr_symlink returns false when binary is absent.
-            // Use a workspace path that exists but with no binary to find:
-            // this is inherently env-dependent, so we test the .bin dir creation.
-            let result = install_aa_ocr_symlink(&workspace);
-            // In a test environment without a built aa-ocr, this will be false.
-            // If the binary happens to be built, it will be true — both are valid.
+
+            // Pass None to simulate "binary not found".
+            let result = install_aa_ocr_symlink(&workspace, None);
+            assert!(!result, "install_aa_ocr_symlink with None source should return false");
+
+            // The .bin dir should still be created.
             let bin_dir = workspace.join(".bin");
-            // The .bin dir should always be created regardless of binary availability.
-            assert!(bin_dir.exists(), ".bin dir should be created even if binary is missing");
-            let _ = result; // We accept either true or false depending on build state.
+            assert!(bin_dir.exists(), ".bin dir should be created even when source is None");
+
+            // No symlink should have been created.
+            let link = bin_dir.join("aa-ocr");
+            assert!(
+                !link.exists() && std::fs::symlink_metadata(&link).is_err(),
+                "no symlink should exist when source is None"
+            );
         });
     }
 }
