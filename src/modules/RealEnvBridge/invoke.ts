@@ -19,6 +19,8 @@ export interface InitReport {
   workspace: string;
   present: AllowedCommand[];
   missing: AllowedCommand[];
+  /** Whether the aa-ocr binary was successfully symlinked into ~/accounting-learner/.bin/aa-ocr */
+  aaOcrInstalled: boolean;
 }
 
 /**

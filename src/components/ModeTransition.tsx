@@ -137,6 +137,16 @@ export function ModeTransition({ onConfirm, onCancel }: ModeTransitionProps) {
               </div>
             )}
 
+            <div className="text-sm font-mono">
+              {state.report.aaOcrInstalled ? (
+                <span className="text-done">aa-ocr 工具: 已链接 ✓</span>
+              ) : (
+                <span className="text-muted">
+                  aa-ocr 工具: 未找到（dev: 跑 cargo build --bin aa-ocr 后重试）
+                </span>
+              )}
+            </div>
+
             <button
               type="button"
               onClick={handleEnterReal}

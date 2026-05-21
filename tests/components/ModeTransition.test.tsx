@@ -64,6 +64,7 @@ describe("ModeTransition", () => {
       workspace: "/Users/test/accounting-learner",
       present: ["Git", "Brew"] as import("@/modules/RealEnvBridge").AllowedCommand[],
       missing: ["Python3", "Claude"] as import("@/modules/RealEnvBridge").AllowedCommand[],
+      aaOcrInstalled: true,
     };
     mockInitializeRealEnv.mockResolvedValueOnce(report);
 
@@ -107,6 +108,7 @@ describe("ModeTransition", () => {
       workspace: "/Users/test/accounting-learner",
       present: [] as import("@/modules/RealEnvBridge").AllowedCommand[],
       missing: [] as import("@/modules/RealEnvBridge").AllowedCommand[],
+      aaOcrInstalled: false,
     };
     mockInitializeRealEnv
       .mockRejectedValueOnce(new Error("first failure"))
@@ -137,6 +139,7 @@ describe("ModeTransition", () => {
       workspace: "/Users/test/accounting-learner",
       present: [] as import("@/modules/RealEnvBridge").AllowedCommand[],
       missing: [] as import("@/modules/RealEnvBridge").AllowedCommand[],
+      aaOcrInstalled: true,
     };
     mockInitializeRealEnv.mockResolvedValueOnce(report);
 
