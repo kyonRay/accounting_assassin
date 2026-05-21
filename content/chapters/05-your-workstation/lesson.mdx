@@ -1,0 +1,149 @@
+# 第 5 章 · 你的工作台
+
+## 1. 终端是什么——另一个"Excel"
+
+你用了十年 Excel，熟悉的是鼠标点格子、菜单选命令。终端看起来只有黑底白字，但本质是同一件事：**你告诉电脑要做什么，它照着做**。区别只有一个——Excel 是鼠标语言，终端是键盘语言。
+
+<Callout type="insight" title="终端 = 键盘版的 Excel 菜单">
+想象一下：你在 Excel 里点击"文件 → 另存为 → CSV 格式"，实际上是通知操作系统"把这个文件存成 CSV"。
+终端里你输入 `cp 报告.xlsx 报告-备份.xlsx`，做的也是同一件事，只是用了键盘语言。
+两种语言都没有对错，只是工具不同。
+本课之后，你将会同时用两种语言。
+</Callout>
+
+> **重要原则**：本应用只展示命令，**从不替你执行**。每条命令都需要你自己打开终端、自己运行。你对自己的电脑负责，应用永远不会在你不知情的情况下改动你的系统。
+
+---
+
+## 2. 装 Homebrew——Mac 的"应用商店"命令行版
+
+Homebrew 是 macOS 上最流行的包管理器。它让你可以用一行命令安装 Python、Git、Claude Code 等工具，而不是到各家网站手动下载安装包。
+
+安装之前，打开终端：`Launchpad → 其他 → 终端`，或按 `⌘ + 空格` 输入 "Terminal" 回车。
+
+<RealStep
+  id="brew-installed"
+  expectsCli="Brew"
+  command='/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+>
+  把上面的命令复制到终端里，按回车，等它跑完。
+
+  安装过程中 macOS **会弹出密码提示**——这是正常的，Homebrew 需要权限创建 `/opt/homebrew/` 目录。
+  输入开机密码，它不会在屏幕上显示字符，这也是正常的。
+
+  安装结束后你会看到类似 `==> Installation successful!` 的提示。
+</RealStep>
+
+<Callout type="warn" title="Apple Silicon vs Intel：PATH 可能需要手动加">
+如果装完后新开一个终端窗口输入 `brew` 显示"command not found"，是因为 Apple Silicon（M 系列芯片）的 Homebrew 安装在 `/opt/homebrew/bin/`，而你的 Shell 配置文件还不知道去那里找。
+
+运行：
+```
+echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+source ~/.zprofile
+```
+
+之后再试 `brew --version`，应该能看到版本号了。
+Intel Mac 的 Homebrew 在 `/usr/local/bin/`，通常不需要这一步。
+</Callout>
+
+---
+
+## 3. 装 Python
+
+Python 是本课后半段的主要工具——Claude Code 会帮你写 Python 脚本来处理发票和报表。你不需要会写 Python，但你的电脑需要安装它来跑脚本。
+
+<RealStep
+  id="python-installed"
+  expectsCli="Python3"
+  command="brew install python"
+>
+  确认 Homebrew 安装好之后，在终端里运行上面的命令。
+
+  安装完成后可以验证一下：
+  ```
+  python3 --version
+  ```
+  你会看到类似 `Python 3.13.x` 的输出。
+</RealStep>
+
+<Callout type="tip" title="为什么是 python3 而不是 python？">
+在 macOS 上，`python` 命令可能指向系统自带的 Python 2（已经很老了），而 `python3` 才是你刚装的新版本。本课所有脚本都用 `python3` 开头。
+</Callout>
+
+---
+
+## 4. 装 Git
+
+Git 是版本控制工具——它记录你的文件每次修改了什么，让你能随时"回到过去"。Claude Code 内部也依赖 Git 来管理代码变更。
+
+<RealStep
+  id="git-installed"
+  expectsCli="Git"
+  command="brew install git"
+>
+  在终端里运行上面的命令。
+
+  装完后验证：
+  ```
+  git --version
+  ```
+  应该看到 `git version 2.x.x`。
+</RealStep>
+
+<Callout type="tip" title="macOS 自带 git？">
+macOS 确实预装了一个 Git，但版本比较老，而且依赖 Xcode Command Line Tools。通过 Homebrew 安装的 Git 更新、更独立，后续也方便 `brew upgrade git` 保持最新。
+</Callout>
+
+---
+
+## 5. 装 Claude Code
+
+Claude Code 是本课的核心工具。它是一个命令行界面（CLI），让你在终端里直接与 Claude 对话，同时让 Claude 能读你的文件、跑你的代码。
+
+<Callout type="warn" title="安装命令可能已更新">
+Claude Code 仍在快速迭代中。如果下面的命令失败，请访问 [Anthropic 官方安装页面](https://docs.anthropic.com/claude/claude-code) 查看最新安装方式。
+</Callout>
+
+<RealStep
+  id="claude-installed"
+  expectsCli="Claude"
+  command="npm install -g @anthropic-ai/claude-code"
+>
+  在终端里运行上面的命令，用 npm 全局安装 Claude Code。
+
+  安装需要 Node.js 环境。如果显示 `npm: command not found`，先运行：
+  ```
+  brew install node
+  ```
+  然后重试上面的安装命令。
+
+  安装完成后验证：
+  ```
+  claude --version
+  ```
+  你会看到类似 `claude/1.x.x` 的输出。
+</RealStep>
+
+<Callout type="tip" title="如果 claude 命令找不到">
+安装后如果新开终端还是显示"command not found"，尝试：
+```
+source ~/.zprofile
+```
+或者直接关闭终端窗口再重新打开。
+</Callout>
+
+---
+
+## 本章小结
+
+你现在的工作台上有了四样工具：
+
+| 工具 | 用途 |
+|---|---|
+| Homebrew (`brew`) | 安装和管理其他工具的工具 |
+| Python 3 (`python3`) | 跑 AI 帮你写的数据处理脚本 |
+| Git (`git`) | 记录文件变更，万一出错能回滚 |
+| Claude Code (`claude`) | 在终端里与 Claude 对话，让它操作你的文件 |
+
+下一章，你将真正打开 Claude Code，开始第一次真实对话。
