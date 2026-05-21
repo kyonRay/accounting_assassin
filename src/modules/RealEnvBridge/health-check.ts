@@ -1,5 +1,6 @@
 import { checkCommandExists, type AllowedCommand } from "./invoke";
 
+// Keep in sync with AllowedCommand union in invoke.ts.
 const ALL_COMMANDS: AllowedCommand[] = [
   "Python3",
   "Claude",
