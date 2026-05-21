@@ -8,6 +8,7 @@ export default [
       "dist/",
       "node_modules/",
       "src-tauri/target/",
+      "target/",
       "**/*.d.ts",
     ],
   },
