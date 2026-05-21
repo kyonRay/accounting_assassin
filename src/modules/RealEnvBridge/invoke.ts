@@ -21,6 +21,48 @@ export interface InitReport {
   missing: AllowedCommand[];
 }
 
+/**
+ * Mirror of Rust `WorkspaceEntry` at src-tauri/src/diagnostics/report.rs.
+ * Contains filename/dirname and size only — NO full paths, NO file content.
+ */
+export interface WorkspaceEntry {
+  name: string;
+  kind: "File" | "Directory";
+  sizeBytes: number | null;
+}
+
+/**
+ * Mirror of Rust `ToolReport` at src-tauri/src/diagnostics/report.rs.
+ * Contains cmd, found, version — NO path field (privacy: path leaks home dir name).
+ */
+export interface ToolReport {
+  cmd: AllowedCommand;
+  found: boolean;
+  version: string | null;
+}
+
+/**
+ * Mirror of Rust `DiagnosticReport` at src-tauri/src/diagnostics/report.rs.
+ *
+ * Allowlist (exhaustive — nothing else):
+ * - appVersion     : cargo package version
+ * - osVersion      : macOS product version (e.g. "14.5")
+ * - arch           : CPU architecture (e.g. "aarch64")
+ * - workspaceExists: whether ~/accounting-learner/ exists
+ * - workspaceTopLevel: top-level entries (filename + kind + size) — no content
+ * - tools          : tool presence + version — no paths
+ * - timestampUtc   : ISO8601 collection time
+ */
+export interface DiagnosticReport {
+  appVersion: string;
+  osVersion: string;
+  arch: string;
+  workspaceExists: boolean;
+  workspaceTopLevel: WorkspaceEntry[];
+  tools: ToolReport[];
+  timestampUtc: string;
+}
+
 export function checkCommandExists(cmd: AllowedCommand): Promise<CommandCheck> {
   return invoke<CommandCheck>("check_command_exists", { cmd });
 }
@@ -35,4 +77,8 @@ export function openTerminalAt(relPath: string): Promise<void> {
 
 export function initializeRealEnv(): Promise<InitReport> {
   return invoke<InitReport>("initialize_real_env");
+}
+
+export function collectDiagnostics(): Promise<DiagnosticReport> {
+  return invoke<DiagnosticReport>("collect_diagnostics");
 }
