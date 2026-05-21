@@ -1,0 +1,247 @@
+# 第 9 章 · Skills：一句话搞定重复工作
+
+## 1. Skills 是什么
+
+<RealStep
+  id="skill-concept-understood"
+  command=""
+>
+  读完这一节，理解 Skill 和一次性脚本的区别，然后点「我跑完了」。
+</RealStep>
+
+Ch 7 里你写了 `invoice_ocr.py`——一个一次性脚本，处理完这批发票就束之高阁了。
+
+但有些工作是**每月都要做的**：整理本月发票、对账银行流水、准备季末税务资料……
+
+每次都要重新向 Claude 解释「我要整理发票，步骤是这样的，格式是那样的」——太麻烦了。
+
+**Skill 是什么？** Skill 就是你写给 Claude 的「工作说明书」：把这件重复工作的背景、步骤、注意事项写成一个 `SKILL.md` 文件，放到指定位置。下次你只要说「帮我整理本月发票」，Claude 就会自动找到这份说明书，按照它来做。
+
+<Callout type="insight" title="Skill vs 一次性任务：本质区别">
+
+**一次性 Python 脚本**（Ch 7 那种方式）：
+
+- 你描述需求 → Claude 写代码 → 你跑代码
+- 每次任务可能不同，代码往往只用一次
+
+**Skill**（这一章的方式）：
+
+- 你写一份说明书（`SKILL.md`）→ Claude 读了之后知道「这类请求对应这套流程」
+- 说明书长期有效，以后同类请求都会自动触发，不用每次重新解释
+
+类比：与其每次告诉同事「去便利店帮我买一瓶矿泉水，要冰的，不要超过 3 元」，不如给他一张「我的日常采购清单」贴在冰箱上。
+</Callout>
+
+### 什么时候该用 Skill？
+
+✅ **适合写成 Skill 的**（重复、多步、跨工具）：
+
+- 月初整理本月发票 → 固定流程，每月做一次
+- 银行流水自动分类 → 固定规则，反复使用
+- 季末税务申报准备 → 步骤多，容易遗漏
+
+❌ **不适合写成 Skill 的**（一次性、问答型）：
+
+- "帮我解释什么是应收账款" → 直接问 Claude 就好
+- "帮我写一段 Python 计算个税" → 一次性任务，用 `claude` 直接说就够
+
+---
+
+## 2. 写第一个 Skill：organize-invoices
+
+### 目录约定
+
+Claude Code 会自动扫描 `~/.claude/skills/` 目录下所有子目录里的 `SKILL.md` 文件。格式很简单：
+
+```
+~/.claude/skills/
+└── organize-invoices/
+    └── SKILL.md
+```
+
+每个子目录对应一个 Skill，目录名就是 Skill 的名字。
+
+### SKILL.md 的结构
+
+一个有效的 `SKILL.md` 包含两部分：
+
+1. **YAML frontmatter**（`---` 之间）— 机器读的：`name` 和 `description`
+2. **Markdown 正文** — 人读的：解释「什么时候用」和「步骤是什么」
+
+`description` 是最重要的字段——Claude 根据这段描述判断你的请求是否应该触发这个 Skill。写得越贴近你平时说话的方式，自动识别成功率越高。
+
+### 动手：创建 organize-invoices Skill
+
+<RealStep
+  id="skill-file-written"
+  command="mkdir -p ~/.claude/skills/organize-invoices && claude"
+>
+  先创建目录，然后让 Claude 帮你写 `SKILL.md`，或者直接用下面的内容手动创建。
+
+  **方法 A（推荐）：让 Claude 帮你创建**
+
+  在终端里运行上面的命令，然后对 Claude 说：
+
+  ```
+  帮我创建 ~/.claude/skills/organize-invoices/SKILL.md，内容如下：
+
+  ---
+  name: organize-invoices
+  description: 整理本月的发票PDF/图片 — OCR提取 + 按类目汇总到 Excel。适合每月初做月报前用。
+  ---
+
+  # organize-invoices
+
+  ## 何时使用
+
+  当用户说要"整理本月发票"、"做发票汇总"、"按类目分发票"时，使用这个 skill。
+
+  ## 步骤
+
+  1. 看 ~/accounting-learner/invoices/ 目录里所有 PDF/PNG/JPG 文件
+  2. 对每个文件用 aa-ocr <file> 命令做 OCR，得到 JSON
+  3. 解析 JSON 中的 date / vendor / amount / tax_id 字段
+  4. 按 vendor 类目分组求和
+  5. 输出到 ~/accounting-learner/outputs/invoice_summary_<YYYY-MM>.xlsx
+  6. 任何 OCR 失败（exit 3）或部分字段（exit 4）的发票，单独列在"需手填"sheet 里
+
+  ## 注意
+
+  - 不要修改原始发票文件
+  - 输出文件用月份做后缀，方便归档
+  - 中文表头：日期 / 商家 / 金额 / 税号 / 类目
+  ```
+
+  确认文件创建完成后，输入 `/exit` 退出，然后点「我跑完了」。
+
+  **方法 B：手动创建**
+
+  ```bash
+  mkdir -p ~/.claude/skills/organize-invoices
+  # 用你喜欢的文本编辑器（或 nano / vim）创建 SKILL.md，填入上面的内容
+  nano ~/.claude/skills/organize-invoices/SKILL.md
+  ```
+
+  保存文件后点「我跑完了」。
+</RealStep>
+
+<Callout type="tip" title="description 是触发的关键">
+`description` 字段决定 Claude 在什么情况下会想到这个 Skill。写的时候想象一下：你平时会怎么描述这项任务？把那些词放进 `description` 里。
+
+示例中的 "整理本月的发票 PDF/图片" 和 "适合每月初做月报前用" 都是触发词——贴近你真实的说话方式。
+</Callout>
+
+---
+
+## 3. 让 Claude 自动调用 Skill
+
+<RealStep
+  id="skill-invoked-by-claude"
+  command="claude"
+>
+  开一个**全新的 Claude 会话**（不要用 `--continue`），然后用自然语言触发 Skill。开一个新会话是为了让 Claude 重新扫描 `~/.claude/skills/` 目录，发现刚才新建的 SKILL.md。
+
+  在终端里运行 `claude`，然后说：
+
+  ```
+  帮我整理本月的发票
+  ```
+
+  注意：**不要**说「用 organize-invoices skill 帮我整理」——那样就失去了 Skill 的意义。应该用自然语言描述任务，让 Claude 自己识别。
+
+  正常情况下，Claude 会回应类似：
+
+  ```
+  好的，我用 organize-invoices skill 帮你整理本月发票。
+  先看一下 ~/accounting-learner/invoices/ 目录里有哪些文件……
+  ```
+
+  然后它会开始运行 `aa-ocr` 并处理文件。
+
+  确认 Claude 识别到了 Skill（回应里提到了 organize-invoices 或 Skill 相关内容），然后点「我跑完了」。
+</RealStep>
+
+<Callout type="warn" title="如果 Claude 没有自动调用 Skill">
+可能的原因：
+
+1. **description 写得不够贴近你的请求**：回去修改 `~/.claude/skills/organize-invoices/SKILL.md` 的 `description` 字段，让它更接近你实际说话的方式。
+2. **会话没有完全重新启动**：确保退出了之前的 Claude 进程，再开一个全新的 `claude` 会话。
+3. **目录路径有误**：检查 `~/.claude/skills/organize-invoices/SKILL.md` 文件是否真实存在（用 `ls ~/.claude/skills/` 确认）。
+
+Skills 的触发不是魔法——Claude 在读 `description` 时做语义匹配。把 description 写得越像你的真实请求，匹配越准。
+</Callout>
+
+---
+
+## 4. 在真实发票上测试
+
+<RealStep
+  id="skill-tested-on-real-data"
+  command="ls ~/accounting-learner/invoices/"
+>
+  把几张真实发票（PDF 或 PNG/JPG 格式）放入 `~/accounting-learner/invoices/` 目录，然后重新开一个 Claude 会话，说「帮我整理本月的发票」，让 Skill 完整跑一遍。
+
+  **检查输出**：
+
+  1. `~/accounting-learner/outputs/` 目录里出现了 `invoice_summary_<当月>.xlsx` 文件
+  2. Excel 文件里有正确的中文表头：日期 / 商家 / 金额 / 税号 / 类目
+  3. 如果有识别失败的发票，它们出现在「需手填」sheet 里
+  4. 原始发票文件没有被修改（Skill 说明里写了「不要修改原始文件」）
+
+  全部确认后，点「我跑完了」。
+</RealStep>
+
+<Callout type="warn" title="OCR 识别不准？用 Ch 8 的方法修改 Skill">
+如果 `aa-ocr` 对某些发票字段识别有偏差（比如税号漏了几位、金额格式不对），不要手动改输出——而是用 Ch 8 学的四段式 BugReportCard 方法，把问题描述给 Claude，让它在 `SKILL.md` 的「步骤」或「注意」里增加纠错说明。
+
+例如：「aa-ocr 对手写发票的金额字段经常返回 null，帮我在 Skill 里加一步：遇到金额为 null 时，把文件名列入「需手填」sheet，并打印提示」。
+</Callout>
+
+<Callout type="insight" title="Skill 是活的说明书，会随使用成长">
+第一次写的 SKILL.md 不会是完美的——用多了你会发现新的边界情况：某类发票格式不对、某月文件数量太多、某些字段命名习惯不一样。
+
+每次发现新问题，就回去往 SKILL.md 里加几行说明。这就是「活文档」——不是一次性写完的，而是随着使用慢慢完善的。
+</Callout>
+
+---
+
+## 5. 什么时候该写 Skill，什么时候不该
+
+| | 任务类型 | 建议 |
+|---|---|---|
+| ✅ | 月初整理发票（重复、多步、跨工具） | 写成 Skill |
+| ✅ | 银行流水自动分类（重复、有标准做法） | 写成 Skill |
+| ✅ | 季末税务申报准备（重复、步骤多） | 写成 Skill |
+| ❌ | 解释什么是「应收账款」（一次性问答） | 直接问 Claude |
+| ❌ | 写一段 Python 计算个税（一次性任务） | 直接让 Claude 写，不需要 Skill |
+
+**判断标准**：如果你发现自己每次对 Claude 说的话都差不多（同样的任务、同样的步骤、同样的格式要求），那就值得写成 Skill。如果每次任务都不一样，直接说就够了。
+
+---
+
+## 6. 进阶：Skills 只是开始
+
+Skill 是 Claude Code 三种「行为扩展」方式里最轻量的一种：
+
+| 机制 | 适合做什么 | 何时学 |
+|---|---|---|
+| **Skill** | 给 Claude 写任务说明书，让它更聪明地理解你的重复任务 | 本章（Ch 9） |
+| **Hook** | 在 Claude 完成某个操作前后自动运行你的代码 | Ch 10 |
+| **MCP** | 让 Claude 接入外部工具（数据库、API、文件系统） | Ch 10 |
+
+下一章（Ch 10）我们会看 Hooks 和 MCP——它们让 Claude 不只是「聪明」，还能「接入你的工具链」。
+
+---
+
+## 本章回顾
+
+本章你完成了四件事：
+
+| 里程碑 | 意义 |
+|---|---|
+| 理解了 Skill 的概念 | 知道「说明书」和「一次性脚本」的本质区别 |
+| 写了 `organize-invoices` Skill | `~/.claude/skills/organize-invoices/SKILL.md` 正式建立 |
+| 让 Claude 自动识别并调用 Skill | 说「帮我整理本月发票」，Claude 自动找到说明书来做 |
+| 在真实发票上跑通了完整流程 | Skill 不只是理论，它真实地处理了你的数据 |
+
+从这一章开始，你有了第一个「可复用的 AI 工作流」。重复的月底工作，以后只需要一句话。
