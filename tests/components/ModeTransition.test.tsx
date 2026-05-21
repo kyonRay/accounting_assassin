@@ -83,6 +83,32 @@ describe("ModeTransition", () => {
     expect(screen.getByText("Brew")).toBeInTheDocument();
     expect(screen.getByText("Python3")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "进入真实环境" })).toBeInTheDocument();
+
+    // aa-ocr status: when aaOcrInstalled is true the linked status must be visible.
+    expect(screen.getByText(/aa-ocr 工具.*已链接/)).toBeInTheDocument();
+  });
+
+  it("shows aa-ocr not-found status when aaOcrInstalled is false", async () => {
+    const report = {
+      workspace: "/Users/test/accounting-learner",
+      present: [] as import("@/modules/RealEnvBridge").AllowedCommand[],
+      missing: [] as import("@/modules/RealEnvBridge").AllowedCommand[],
+      aaOcrInstalled: false,
+    };
+    mockInitializeRealEnv.mockResolvedValueOnce(report);
+
+    render(<ModeTransition onConfirm={vi.fn()} onCancel={vi.fn()} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "准备好了,开始" }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("你的作业本已经准备好了。")).toBeInTheDocument();
+    });
+
+    // aa-ocr status: when aaOcrInstalled is false the not-found status must be visible.
+    expect(screen.getByText(/aa-ocr 工具.*未找到/)).toBeInTheDocument();
   });
 
   it("shows failure state and 重试 button when initializeRealEnv rejects", async () => {
