@@ -1,0 +1,223 @@
+# 第 7 章 · 在自己的项目里工作
+
+## 1. 欢迎进入「自己的项目」
+
+前两章我们搭好了工作台（Ch 5）、第一次跟真实的 Claude Code 对话（Ch 6）。`~/accounting-learner/` 这个目录一直都在——现在是时候把它当成一个**真正属于你的项目**，而不只是练习场。
+
+真实项目有三个特征：
+- 有一份说明文件，让你（或 AI）下次打开时知道"这里是干嘛的"
+- 有组织好的目录结构（脚本在 `scripts/`，输出在 `outputs/`）
+- 有版本历史，出了问题能回滚
+
+本章我们来完成第一个特征，同时完成你的**第一个真实会计任务**：用 Python 调用 App 预置的 `aa-ocr` 工具，把发票 PDF 自动提取成结构化数据。
+
+---
+
+## 2. CLAUDE.md——项目的记忆
+
+### 为什么需要 CLAUDE.md？
+
+每次你打开 Claude Code，它对你的项目是"失忆"的——它不知道你上次在做什么，不知道你的目录结构，不知道你习惯用中文还是英文注释。
+
+`CLAUDE.md` 就是给 Claude 的「项目说明书」。把它放在项目根目录（`~/accounting-learner/CLAUDE.md`），Claude Code 每次启动时会自动读取它，从而了解：
+- 这个项目是干什么的
+- 目录结构是怎样的
+- 你的偏好和约定
+
+<Callout type="tip" title="写 CLAUDE.md 不必完美">
+不用把所有东西都写进去——只写你觉得「每次都要向 Claude 解释的事」就够了。
+它会随着你的项目慢慢成长，就像工作笔记一样。
+</Callout>
+
+### 动手：让 Claude 帮你写 CLAUDE.md
+
+<RealStep
+  id="claude-md-written"
+  command="cd ~/accounting-learner && claude"
+>
+  打开终端，进入工作目录启动 Claude Code，然后对它说：
+
+  ```
+  帮我在这个目录里创建一份 CLAUDE.md 文件，内容大概是：
+
+  # 我的会计 AI 工作目录
+
+  这是我用来跟 AI 一起处理会计任务的目录。
+
+  ## 现状
+  - 我刚学完第 6 章
+  - 我有一些发票要 OCR + 整理
+
+  ## 目录结构
+  - scripts/   — Python 脚本
+  - invoices/  — 待处理的发票 PDF
+  - outputs/   — 脚本输出的结果
+
+  ## 偏好
+  - 脚本写在 scripts/ 目录
+  - 数据输出用 outputs/ 目录
+  - 中文表头用中文，代码注释也用中文
+  ```
+
+  Claude 会帮你创建 `CLAUDE.md` 和对应的目录结构。确认文件创建完成后，输入 `/exit` 退出，然后点「我跑完了」。
+</RealStep>
+
+---
+
+## 3. 第一次真实任务：一张发票的 OCR
+
+### aa-ocr 是什么？
+
+记账杀手 App 里预置了一个叫 `aa-ocr` 的命令行工具，它封装了 macOS 系统级的图像识别（Vision Framework），能从发票 PDF 或图片里提取：
+
+| 字段 | 说明 |
+|---|---|
+| `date` | 发票日期 |
+| `vendor` | 商家名称 |
+| `amount` | 金额（元） |
+| `tax_id` | 销售方税号 |
+
+<Callout type="warn" title="aa-ocr 是 App 帮你装好的">
+`aa-ocr` 工具是记账杀手 App 在「切换到真实环境」时自动安装的（在 Ch 5 的切换流程里）。
+
+如果终端里输入 `aa-ocr --version` 显示「command not found」，说明 App 还没完成安装。请回到 Ch 5 的「真实环境切换」步骤，重新走一遍，让 App 把 symlink 装上。
+
+你**不需要**自己写 OCR 代码，也不需要了解它内部的 Rust / Vision Framework 实现——那些复杂性都被封装进了这个工具。
+</Callout>
+
+`aa-ocr` 的接口非常简单：
+
+```bash
+# 处理单张发票，输出 JSON
+aa-ocr path/to/invoice.pdf
+
+# 典型的成功输出（exit 0）
+{
+  "date": "2025-03-15",
+  "vendor": "北京某贸易有限公司",
+  "amount": "1234.56",
+  "tax_id": "91110108XXXXXXXX"
+}
+```
+
+退出码含义：
+- `0` — 全部字段提取成功
+- `4` — 部分字段提取成功（JSON 里缺失的字段值为 `null`）
+- `2` — 文件不存在或无法读取
+
+### 动手：让 Claude 写 invoice_ocr.py
+
+准备一张发票（你自己的发票 PDF，或任何图片格式的发票扫描件），把它放到 `~/accounting-learner/invoices/` 目录里。如果暂时没有真实发票，可以用任何 PDF 测试基本流程。
+
+<RealStep
+  id="invoice-ocr-script-written"
+  command="cd ~/accounting-learner && claude"
+>
+  打开终端，进入工作目录启动 Claude Code，然后说：
+
+  ```
+  帮我在 scripts/ 目录里写一个 invoice_ocr.py 脚本，要求：
+  1. 接受一个命令行参数：发票文件路径
+  2. 用 subprocess 调用 aa-ocr 处理这个文件
+  3. 解析返回的 JSON，打印格式化的表格：
+     日期 / 商家 / 金额 / 税号
+  4. 如果 aa-ocr 返回退出码 4（部分字段），打印出已提取的字段，
+     并标注哪些字段缺失
+  5. 如果退出码 2（文件不存在），打印友好的错误信息
+  6. 只用标准库（subprocess、json、sys），不要安装额外的包
+  ```
+
+  Claude 会在 `scripts/invoice_ocr.py` 里写好脚本。确认文件创建完成后，输入 `/exit` 退出，然后点「我跑完了」。
+</RealStep>
+
+<Callout type="tip" title="看不懂脚本内容？完全没问题">
+你不需要能读懂 Python 代码——关键是学会**对 Claude 描述你要什么**，然后让它来写。
+随着练习增多，你会越来越擅长描述需求，Claude 写的代码质量也会越来越高。
+</Callout>
+
+### 动手：跑起来
+
+<RealStep
+  id="script-ran-successfully"
+  expectsCli="Python3"
+  command="python3 ~/accounting-learner/scripts/invoice_ocr.py ~/accounting-learner/invoices/sample.pdf"
+>
+  把 `sample.pdf` 换成你实际的发票文件名，然后在终端里运行上面的命令。
+
+  成功时你会看到类似这样的输出：
+
+  ```
+  ===== 发票信息 =====
+  日期    : 2025-03-15
+  商家    : 北京某贸易有限公司
+  金额    : ¥1,234.56
+  税号    : 91110108XXXXXXXX
+  ====================
+  ```
+
+  如果某些字段提取不完整（常见于手写发票或低质量扫描件），脚本会标注哪些字段缺失，这是正常现象。
+
+  看到输出之后，点「我跑完了」。
+</RealStep>
+
+---
+
+## 4. `--continue` 跨会话延续
+
+### 为什么需要 --continue？
+
+Claude Code 默认每次启动都是全新会话——之前的对话内容不会保留。但在真实工作中，你经常需要「继续昨天做到一半的事」。
+
+`claude --continue` 会恢复上一次的会话上下文，让 AI 记得：
+- 你们上次在讨论什么
+- 写了哪些文件
+- 有哪些决定还没做完
+
+加上你刚写的 `CLAUDE.md`，Claude 会同时拥有：
+- 项目的静态背景（CLAUDE.md）
+- 上次对话的动态上下文（--continue）
+
+<Callout type="insight" title="--continue 节省的是「讲背景」的时间">
+没有 --continue，每次开新对话你都要解释：「我有一个 invoice_ocr.py 脚本，上次你帮我写的，现在我想扩展它……」
+有了 --continue，直接说「把刚才的脚本扩展一下」就够了。
+</Callout>
+
+### 动手：体验跨会话延续
+
+<RealStep
+  id="continue-flow-tried"
+  command="cd ~/accounting-learner && claude --continue"
+>
+  关闭当前终端窗口，重新打开一个新的终端窗口。然后运行上面的命令。
+
+  Claude 会显示上次会话的摘要，然后等待你的下一步指令。
+
+  试着对它说（先不用真的做，感受一下它的回应）：
+
+  ```
+  把刚才写的 invoice_ocr.py 扩展一下：
+  接受一个目录路径，批量处理目录里所有的 PDF 文件，
+  把结果汇总输出到 outputs/ocr_results.csv
+  ```
+
+  观察 Claude 如何基于上次的对话来回应（它会引用之前写的脚本结构）。
+
+  看到 Claude 的回应后，输入 `/exit` 退出，然后点「我跑完了」。
+
+  （这个扩展功能我们在 Ch 14 的毕业作品里会真正实现——现在只是提前感受一下工作流。）
+</RealStep>
+
+---
+
+## 本章回顾
+
+本章你完成了四件事：
+
+| 里程碑 | 意义 |
+|---|---|
+| 写了 `CLAUDE.md` | 给项目建立了「AI 记忆」，以后 Claude 每次进来都知道背景 |
+| 写了 `scripts/invoice_ocr.py` | 第一个真实会计工作脚本，用 Python 调用 App 工具处理发票 |
+| 跑通了脚本 | 亲眼看到 AI 帮你提取发票数据 |
+| 试了 `--continue` | 学会了跨会话延续，不再每次都重新介绍自己 |
+
+从这一章开始，你的 `~/accounting-learner/` 不再只是练习场——它是一个正在生长的真实项目。下一章（Ch 8）我们来处理一个真实项目里必然遇到的问题：**Bug 来了怎么办**。
