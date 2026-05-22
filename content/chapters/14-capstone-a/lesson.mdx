@@ -1,0 +1,456 @@
+# 第 14 章 · 毕业作品 A：三个独立小工具
+
+## 1. 你已经走到这里了
+
+从 Ch 1 的沙盒实验，到 Ch 13 的 Cursor，你用了十三章的时间，把 Claude Code、Codex CLI、Cursor 全部放进了工具箱。
+
+现在该动真格了。
+
+**毕业作品 A** 是三个真实运行的 Python 小工具，全部放在 `~/accounting-learner/capstone-a/` 目录里，全部由你描述需求、Claude 来写代码：
+
+| 工具 | 目录 | 干什么 |
+|---|---|---|
+| **invoice-ocr** | `capstone-a/invoice-ocr/` | 批量处理一个文件夹的发票，输出 Excel 汇总 |
+| **bank-classifier** | `capstone-a/bank-classifier/` | 读银行流水 CSV，把每笔消费分类（餐饮/交通/办公…） |
+| **report-aggregator** | `capstone-a/report-aggregator/` | 合并多个 Excel 费用报表，生成一张汇总表 |
+
+**为什么是「三个独立的」？**
+
+每个工具都能单独运行，不依赖其他工具的输出，不共享代码。这是 Ch 14 的设计原则：先把每个环节跑通，再在 Ch 15 把它们串成一条完整的工作流。
+
+---
+
+## 2. 安装依赖：pandas 和 openpyxl
+
+Ch 7 的 `invoice_ocr.py` 只用了标准库（subprocess、json、sys），不需要安装额外的包。但这次三个工具都要处理 Excel，需要用到两个第三方库：
+
+- **pandas** — 处理表格数据（读 CSV、筛选、分组）
+- **openpyxl** — 读写 `.xlsx` 文件（Excel 格式）
+
+<RealStep
+  id="deps-installed"
+  expectsCli="Python3"
+  command="pip3 install --user pandas openpyxl"
+>
+  在终端里运行下面这条命令，安装这两个库：
+
+  ```bash
+  pip3 install --user pandas openpyxl
+  ```
+
+  `--user` 的意思是把库装到你自己的用户目录，而不是系统目录，这样不需要 sudo。
+
+  安装成功后你会看到类似这样的输出（版本号可能不同）：
+
+  ```
+  Successfully installed openpyxl-3.1.x pandas-2.x.x ...
+  ```
+
+  验证安装是否成功：
+
+  ```bash
+  python3 -c "import pandas; import openpyxl; print('OK')"
+  ```
+
+  看到 `OK` 就说明安装好了。
+
+  <Callout type="warn" title="Homebrew Python 报错？用这个备用命令">
+  如果你的 Python 是通过 Homebrew 安装的（2026 年的 macOS 常见情况），`pip3 install --user` 可能会报错：
+  ```
+  error: externally-managed-environment
+  ```
+  遇到这个错误，改用这条命令（加了 `--break-system-packages`）：
+  ```bash
+  pip3 install --user --break-system-packages pandas openpyxl
+  ```
+  这个选项告诉 pip「我知道在干什么，让我继续」，对学习场景完全没有问题。
+  </Callout>
+
+  <Callout type="tip" title="虚拟环境（venv）是什么？以后再讲">
+  你可能在某些教程里见过 `python3 -m venv` 这样的命令。venv 是管理 Python 依赖的进阶方式，能避免不同项目之间的版本冲突。
+
+  **本章不讲 venv**——对这三个独立工具，`pip3 install --user` 已经足够。等 Ch 15 项目规模扩大之后，我们再认识 venv。
+  </Callout>
+
+  看到 `OK` 之后，点「我跑完了」。
+</RealStep>
+
+---
+
+## 3. 工具一：invoice-ocr · 批量发票 OCR + Excel 汇总
+
+### 这个工具做什么？
+
+Ch 7 你写了 `invoice_ocr.py`，它每次处理**一张**发票。
+
+现在毕业作品 A 的第一个工具要升级这个能力：**一次处理一整个文件夹的发票**，把所有提取结果汇总到一个 Excel 文件里。
+
+### 降级流：AI 工具不是万能的，设计降级路径才是真本领
+
+在实际工作中，`aa-ocr` 不会每张发票都完美识别。回顾 Ch 7 的接口：
+
+| 退出码 | 含义 |
+|---|---|
+| `0` | 全部字段提取成功 |
+| `4` | 部分字段提取成功（某些字段值为 `null`） |
+| `3` | 无法识别（图片质量太差或格式不支持） |
+| `2` | 文件不存在或无法读取 |
+
+一张清晰的 PDF 发票，退出码通常是 `0`；手机拍的模糊照片，可能是 `4` 甚至 `3`。
+
+**工程师的应对方式不是抱怨 AI 不够完美，而是设计降级流（Fallback Flow）**：
+
+```
+aa-ocr 处理每张发票
+  ↓
+退出码 0  → 写入「主表」sheet（日期/商家/金额/税号）
+退出码 4  → 写入「需手填」sheet（已提取字段 + 标注缺失字段）
+退出码 3  → 写入「失败」sheet（文件名 + 识别失败原因）
+  ↓
+输出: invoice_summary_YYYY-MM.xlsx（三个 sheet）
+  ↓
+你打开 Excel → 手动填写「需手填」里的空白字段
+  ↓
+（可选）把补全的数据再用 Claude 验证格式是否合规
+```
+
+这个三层结构让批量处理变得健壮：即使有几张发票识别不完整，整个批次不会崩溃，你能清晰地看到哪些需要人工介入。
+
+**这是本章最重要的工程思维：设计降级路径。**
+
+<Callout type="insight" title="降级流是会计 AI 工作的核心技能">
+AI 工具识别率达到 90% 已经是很好的结果了。剩下的 10% 怎么处理，取决于你的设计。
+
+没有降级流的批量处理：遇到一张坏发票就崩溃，或者悄悄丢失数据。
+
+有降级流的批量处理：自动分类处理结果，清晰标注需要人工干预的部分，让你对整个批次的状态一目了然。
+
+这个思维不只适用于 OCR——任何依赖 AI 的工作流都需要它。
+</Callout>
+
+### 动手：让 Claude 搭建 invoice-ocr 项目
+
+<RealStep
+  id="invoice-ocr-scaffolded"
+  command="cd ~/accounting-learner && claude"
+>
+  打开终端，进入工作目录启动 Claude Code，然后对它说：
+
+  ```
+  在 ~/accounting-learner/capstone-a/invoice-ocr/ 下帮我创建一个批量发票 OCR 项目：
+
+  目录结构：
+  - scripts/batch_ocr.py   批量处理发票的主脚本
+  - inputs/                放待处理的发票 PDF/JPG/PNG（我自己来放）
+  - outputs/               输出的 Excel 汇总文件
+  - README.md              项目说明
+
+  batch_ocr.py 要求：
+  1. 扫描 inputs/ 目录下所有 .pdf/.jpg/.png 文件
+  2. 对每个文件用 subprocess 调用 aa-ocr，解析返回的 JSON
+  3. 根据 aa-ocr 的退出码分三类处理：
+     - 退出码 0（成功）→ 记录到主表（中文表头：日期/商家/金额/税号/文件名）
+     - 退出码 4（部分）→ 记录到「需手填」sheet（已提取字段 + 标注缺失的字段名）
+     - 退出码 3（失败）→ 记录到「失败」sheet（文件名 + "识别失败" 原因）
+     - 其他退出码 → 也放入「失败」sheet
+  4. 把三个 sheet 写入 outputs/invoice_summary_YYYY-MM.xlsx（YYYY-MM 用当月日期）
+  5. 运行结束时打印汇总：成功 X 张，需手填 Y 张，失败 Z 张
+  6. 用 openpyxl 写 Excel，用 pandas 处理表格数据
+  7. 如果 inputs/ 目录不存在，自动创建它并打印提示
+
+  脚本要求只用 subprocess、json、sys、pathlib、datetime 标准库加上 pandas 和 openpyxl。
+  ```
+
+  Claude 会帮你创建整个目录结构和脚本。确认文件创建完成后，输入 `/exit` 退出，然后点「我跑完了」。
+
+  <Callout type="tip" title="inputs/ 里没有发票也可以先测试">
+  即使 inputs/ 是空文件夹，batch_ocr.py 也应该能跑——它会打印「处理 0 张文件，全部成功」之类的信息。等你有真实发票再放进去。
+
+  或者你可以让 Claude 在脚本里加一个 `--demo` 参数，用假数据测试三种路径（成功/需手填/失败）都能写入 Excel。
+  </Callout>
+</RealStep>
+
+### 动手：跑起来，看 Excel 汇总
+
+<RealStep
+  id="invoice-ocr-ran"
+  expectsCli="Python3"
+  command="python3 ~/accounting-learner/capstone-a/invoice-ocr/scripts/batch_ocr.py"
+>
+  把几张发票（PDF 或图片）放到 `~/accounting-learner/capstone-a/invoice-ocr/inputs/` 目录里，然后运行：
+
+  ```bash
+  python3 ~/accounting-learner/capstone-a/invoice-ocr/scripts/batch_ocr.py
+  ```
+
+  成功后，脚本会打印类似这样的汇总：
+
+  ```
+  ===== 批量 OCR 完成 =====
+  成功:    8 张
+  需手填:  2 张（打开 Excel 手动填写缺失字段）
+  失败:    1 张（查看「失败」sheet 了解原因）
+  输出文件: outputs/invoice_summary_2026-05.xlsx
+  ```
+
+  打开 `outputs/invoice_summary_2026-05.xlsx`，确认三个 sheet 都在。
+
+  「需手填」sheet 里的空白字段，就是你下一步要手动补全的地方——这就是降级流在实际工作中的样子。
+
+  <Callout type="tip" title="暂时没有发票？">
+  如果 inputs/ 目录是空的，脚本应该打印「处理 0 张文件」并正常退出。这也是成功的输出——说明脚本结构正确。
+
+  你也可以先用任意 PDF 测试（脚本会收到退出码 3 并写入「失败」sheet），验证三种路径都能走通之后再用真实发票。
+  </Callout>
+
+  看到汇总输出之后，点「我跑完了」。
+</RealStep>
+
+---
+
+## 4. 工具二：bank-classifier · 银行流水分类
+
+### 这个工具做什么？
+
+银行 CSV 流水的每一行是一笔消费，但没有分类。你的任务是把它们自动归入以下类别：
+
+| 类别 | 关键词举例 |
+|---|---|
+| 餐饮 | 美团、饿了么、麦当劳、肯德基、星巴克 |
+| 交通 | 滴滴、高铁、机票、地铁、停车、加油 |
+| 办公 | 阿里云、腾讯云、京东企业、文具 |
+| 快递 | 顺丰、菜鸟、韵达、极兔 |
+| 其它 | 以上都不匹配的 |
+
+分类规则很简单——检查「摘要」字段里有没有这些关键词。这不是机器学习，就是字符串匹配，足够处理大多数真实流水了。
+
+<Callout type="insight" title="「够用」就是最好的设计">
+你可能会想：这个分类太简单了，能准吗？
+
+在实际工作中，简单的关键词匹配通常能覆盖 80-90% 的日常消费类别。剩下的 10-20% 归入「其它」，由你定期手动核查。
+
+先把 80% 的自动化做好，比做一个「完美但用不起来的 ML 分类器」更有价值。
+</Callout>
+
+### 动手：让 Claude 搭建 bank-classifier 项目
+
+<RealStep
+  id="bank-classifier-scaffolded"
+  command="cd ~/accounting-learner && claude"
+>
+  打开终端，进入工作目录启动 Claude Code，然后对它说：
+
+  ```
+  在 ~/accounting-learner/capstone-a/bank-classifier/ 下帮我创建一个银行流水分类项目：
+
+  目录结构：
+  - scripts/bank_classify.py  主脚本
+  - inputs/                   放银行导出的 CSV 文件（我自己来放）
+  - outputs/                  分类后的 CSV 输出
+  - README.md                 项目说明 + 分类规则说明
+
+  bank_classify.py 要求：
+  1. 读取 inputs/ 目录下第一个 .csv 文件（如果没有，打印提示后退出）
+  2. 自动探测 CSV 的编码（尝试 utf-8，失败则用 gbk——中国银行导出的 CSV 常用 GBK）
+  3. 找到「摘要」或「交易摘要」或「备注」字段（不同银行列名可能不同，尝试几种常见名字）
+  4. 基于关键词匹配对每行分类：
+     - 餐饮：美团、饿了么、麦当劳、肯德基、必胜客、星巴克、瑞幸
+     - 交通：滴滴、高铁、机票、地铁、停车、加油、ETC、顺风车
+     - 办公：阿里云、腾讯云、京东企业、文具、打印、办公
+     - 快递：顺丰、菜鸟、韵达、极兔、中通、圆通、申通
+     - 其它：以上都不匹配
+  5. 新增「分类」列，写入匹配结果
+  6. 输出到 outputs/bank_classified_YYYY-MM.csv（YYYY-MM 用当月日期）
+  7. 运行结束打印每个类别的笔数统计
+
+  只用 pandas、pathlib、datetime、sys 标准库和 pandas。
+  ```
+
+  Claude 会帮你创建整个目录结构。确认文件创建完成后，输入 `/exit` 退出，然后点「我跑完了」。
+</RealStep>
+
+### 动手：跑起来，检查分类结果
+
+<RealStep
+  id="bank-classifier-ran"
+  expectsCli="Python3"
+  command="python3 ~/accounting-learner/capstone-a/bank-classifier/scripts/bank_classify.py"
+>
+  把你的银行 CSV 流水导出文件放到 `~/accounting-learner/capstone-a/bank-classifier/inputs/` 目录里，然后运行：
+
+  ```bash
+  python3 ~/accounting-learner/capstone-a/bank-classifier/scripts/bank_classify.py
+  ```
+
+  成功后，脚本会打印类似这样的统计：
+
+  ```
+  ===== 分类完成 =====
+  餐饮:  23 笔
+  交通:   8 笔
+  办公:  15 笔
+  快递:   6 笔
+  其它:  48 笔
+  输出文件: outputs/bank_classified_2026-05.csv
+  ```
+
+  打开输出的 CSV，检查几笔消费的分类是否正确。如果你发现某个类别的关键词漏了（比如你常用的外卖平台没在列表里），记下来——然后让 Claude 在脚本里帮你补上：
+
+  ```
+  帮我在 bank_classify.py 里的餐饮关键词列表里加上「某某外卖」
+  ```
+
+  这就是日常维护一个 AI 辅助脚本的样子：发现不对 → 描述需求 → Claude 改。
+
+  <Callout type="tip" title="暂时没有银行 CSV？">
+  不同银行导出的 CSV 格式不同（列名、编码都可能不一样）。如果脚本报错找不到某个列名，把错误信息复制给 Claude：
+
+  ```
+  脚本报错了，错误信息是：KeyError: '摘要'。我的 CSV 里这一列叫「交易描述」，帮我修改脚本。
+  ```
+
+  Claude 会帮你适配。
+  </Callout>
+
+  看到统计输出或者让 Claude 修好了报错之后，点「我跑完了」。
+</RealStep>
+
+---
+
+## 5. 工具三：report-aggregator · 多表汇总
+
+### 这个工具做什么？
+
+如果你管理多个部门的费用报表，每个部门每月交一个 Excel，你需要把它们汇总成一张表供月末对账用。
+
+手动复制粘贴很容易出错，也很烦。这个工具自动完成汇总：读取 inputs/ 里所有 `.xlsx` 文件，把它们合并成一张，加上「来源文件」列用于追溯。
+
+### 动手：让 Claude 搭建 report-aggregator 项目
+
+<RealStep
+  id="report-aggregator-scaffolded"
+  command="cd ~/accounting-learner && claude"
+>
+  打开终端，进入工作目录启动 Claude Code，然后对它说：
+
+  ```
+  在 ~/accounting-learner/capstone-a/report-aggregator/ 下帮我创建一个多表汇总项目：
+
+  目录结构：
+  - scripts/aggregate.py   主脚本
+  - inputs/                放各部门费用报表 .xlsx 文件（我自己来放）
+  - outputs/               汇总后的 Excel 输出
+  - README.md              项目说明
+
+  aggregate.py 要求：
+  1. 扫描 inputs/ 目录下所有 .xlsx 文件
+  2. 用 pandas 读取每个 Excel 文件的第一个 sheet
+  3. 在每个文件的数据里新增一列「来源文件」，值为文件名（不含路径）
+  4. 把所有文件的数据纵向拼接（pd.concat）
+  5. 输出到 outputs/aggregated_YYYY-MM.xlsx，sheet 名为「汇总」
+  6. 运行结束打印：读取了 N 个文件，共 M 行数据
+  7. 如果 inputs/ 里没有 xlsx 文件，打印提示后正常退出（不报错崩溃）
+  8. 用 pandas + openpyxl
+
+  脚本只用 pandas、openpyxl、pathlib、datetime、sys。
+  ```
+
+  Claude 会帮你创建整个目录结构。确认文件创建完成后，输入 `/exit` 退出，然后点「我跑完了」。
+</RealStep>
+
+### 动手：跑起来，验证汇总结果
+
+<RealStep
+  id="report-aggregator-ran"
+  expectsCli="Python3"
+  command="python3 ~/accounting-learner/capstone-a/report-aggregator/scripts/aggregate.py"
+>
+  把几个 Excel 费用报表放到 `~/accounting-learner/capstone-a/report-aggregator/inputs/` 目录里，然后运行：
+
+  ```bash
+  python3 ~/accounting-learner/capstone-a/report-aggregator/scripts/aggregate.py
+  ```
+
+  成功后，脚本会打印类似这样的输出：
+
+  ```
+  读取了 3 个文件，共 87 行数据
+  输出文件: outputs/aggregated_2026-05.xlsx
+  ```
+
+  打开 `outputs/aggregated_2026-05.xlsx`，检查「来源文件」列是否正确标注了每行数据来自哪个文件。
+
+  <Callout type="tip" title="报表列名不一致？">
+  如果各部门的费用报表列名不完全一样（比如一个叫「金额」，另一个叫「费用金额」），pd.concat 会产生多列，值为 NaN 的地方说明某个文件没有对应列。
+
+  这是真实工作中经常遇到的情况。你可以把这个问题告诉 Claude，让它帮你加一个列名对齐逻辑：
+
+  ```
+  帮我在 aggregate.py 里加一个列名映射，把「费用金额」统一改成「金额」，把「部门名称」统一改成「部门」
+  ```
+  </Callout>
+
+  <Callout type="tip" title="暂时没有 Excel 报表？">
+  你可以先用 Claude 帮你生成两个测试 Excel 文件：
+
+  ```
+  帮我在 capstone-a/report-aggregator/inputs/ 里生成两个测试用的 Excel 文件：
+  - dept_a_2026-05.xlsx  包含列：日期/项目/金额/部门，写 5 行假数据
+  - dept_b_2026-05.xlsx  同样的列，写 5 行不同的假数据
+  ```
+
+  然后再跑 aggregate.py 验证合并结果。
+  </Callout>
+
+  看到汇总输出之后，点「我跑完了」。
+</RealStep>
+
+---
+
+## 6. 毕业作品 A 回顾
+
+<RealStep
+  id="capstone-a-reviewed"
+>
+  你刚刚完成了三个独立运行的 Python 工具——不一定每个都"完美"，但每个都真实地跑起来了。
+
+  回顾一下这三个工具体现的思维：
+
+  | 工具 | 核心思维 |
+  |---|---|
+  | **invoice-ocr** | 降级流：AI 不完美时，用三层分类处理不同结果 |
+  | **bank-classifier** | 够用即可：简单的字符串匹配覆盖 80% 场景 |
+  | **report-aggregator** | 自动化重复劳动：把手动复制粘贴变成一行命令 |
+
+  这三个工具现在是相互独立的。Ch 15 会把它们串起来：
+
+  - invoice-ocr 的 Excel 汇总 → 作为 report-aggregator 的输入之一
+  - bank-classifier 的分类结果 → 和发票数据一起对账
+  - 最终产出一份**完整的月末结账报告**
+
+  **「三个独立小工具」是「完整工作流」的基础。这是软件工程里的核心原则之一：先让每个部件单独跑通，再把它们组合起来。**
+
+  <Callout type="insight" title="你学到的不只是 Python">
+  这三章的内容，你写的「代码」很少——你主要是在写**需求描述**：告诉 Claude 要什么，让它来实现。
+
+  这正是 AI 辅助开发的核心技能：**清晰地描述你要什么，比知道怎么写代码更重要**。
+
+  你在这三个工具里练习的，是如何把一个真实业务问题（批量 OCR、流水分类、多表汇总）转化成一个 Claude 能执行的需求规格。这个技能，在 Ch 15 和之后的实际工作里，会一直用到。
+  </Callout>
+
+  读完回顾之后，点「我跑完了」——毕业作品 A 完成。
+</RealStep>
+
+---
+
+## 本章回顾
+
+| 里程碑 | 意义 |
+|---|---|
+| 安装 pandas + openpyxl | 第一次用 pip 安装第三方库 |
+| 搭建 invoice-ocr + 跑通 | 学会设计**降级流**：OCR 退出码 4 → 需手填，退出码 3 → 失败 |
+| 搭建 bank-classifier + 跑通 | 用简单关键词匹配做「够用」的分类 |
+| 搭建 report-aggregator + 跑通 | 把手动合并多表变成一行命令 |
+| 完成 capstone-a 回顾 | 理解三个工具背后的工程思维，准备好进入 Ch 15 |
+
+Ch 15 是**毕业作品 B**——我们把这三个工具串成一条完整的月末结账 AI 工作流。
