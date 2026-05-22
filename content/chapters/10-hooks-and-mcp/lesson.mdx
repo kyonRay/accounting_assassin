@@ -154,42 +154,48 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 **安装 SQLite MCP 服务器**：
 
+用 `claude mcp add` 命令注册 MCP 服务器——这是 Anthropic 官方推荐的方式，比手工改配置文件安全得多（配置文件名和位置在不同版本里变过几次，CLI 永远写到正确位置）：
+
 ```bash
-# 方法 A：通过 claude mcp add 命令（推荐）
-claude mcp add sqlite-db uvx -- mcp-server-sqlite --db-path "$HOME/accounting-learner/accounting.db"
+claude mcp add sqlite-db -s user -- uvx mcp-server-sqlite --db-path "$HOME/accounting-learner/accounting.db"
 ```
 
-或者直接编辑 `~/.claude/settings.json`，在 `mcpServers` 里加一项：
+**命令拆解**（看着长，其实结构很简单）：
 
-<Callout type="warn">
-  ⚠️ `~/.claude/settings.json` 是你的**全局**配置。如果文件已存在，**只在根对象里追加 `"mcpServers"` 这个键**，不要覆盖整个文件。建议先备份：`cp ~/.claude/settings.json ~/.claude/settings.json.bak`。
+| 部分 | 含义 |
+|---|---|
+| `claude mcp add` | 添加一个 MCP 服务器 |
+| `sqlite-db` | 你给这个服务器起的名字（自定义） |
+| `-s user` | 作用域：`user` 表示「所有项目都能用」；不写默认是 `local`（只当前目录） |
+| `--` | 分隔符，告诉 CLI「后面这些是要启动的子进程命令和参数，不是 `claude` 自己的选项」 |
+| `uvx mcp-server-sqlite` | 子进程命令——用 `uvx` 临时下载并运行 `mcp-server-sqlite` 包 |
+| `--db-path "$HOME/..."` | 传给 `mcp-server-sqlite` 的参数：指定数据库文件位置 |
+
+<Callout type="tip" title="为什么用 $HOME 不用 /Users/你的用户名？">
+  `$HOME` 是 macOS 和 Linux 自带的环境变量，会自动展开成你当前用户的 home 目录（比如 `/Users/zhangsan`）。**你不用替换它，直接复制粘贴上面的命令就行**。如果你写 `/Users/你的用户名` 那种字面量，shell 会把它当成真的目录名找不到。
 </Callout>
-
-```json
-{
-  "mcpServers": {
-    "sqlite-db": {
-      "command": "uvx",
-      "args": [
-        "mcp-server-sqlite",
-        "--db-path",
-        "/Users/你的用户名/accounting-learner/accounting.db"
-      ]
-    }
-  }
-}
-```
 
 **验证安装**：
 
 ```bash
 claude mcp list
-# 应该看到 sqlite-db 在列表里，状态为 Connected（或 Configured）
+# 应该看到类似：
+# sqlite-db: uvx mcp-server-sqlite --db-path /Users/你的用户名/accounting-learner/accounting.db - ✓ Connected
 ```
+
+如果状态不是 `✓ Connected`：
+
+- 数据库文件还不存在？这是下一节的事，先建好 `accounting.db` 再回头看（也可以先 `touch ~/accounting-learner/accounting.db` 让文件占位）
+- 看不到 `sqlite-db` 这一行？可能 `claude mcp add` 报错了——往回看终端是否有红色错误提示，或者重跑一次 `claude mcp add ...`
+- 想撤销重来：`claude mcp remove sqlite-db -s user`
 
 <Callout type="tip" title="uvx 是什么？">
   `uvx` 是 `uv` 提供的命令，功能类似 `npx`：它临时下载并运行一个 Python 包，不需要手动
   `pip install`。`mcp-server-sqlite` 就是 Anthropic 官方维护的 SQLite MCP 服务器包。
+</Callout>
+
+<Callout type="insight" title="配置文件在哪？（好奇的同学可以看）">
+  `claude mcp add` 会把你的 MCP 配置写到 `~/.claude.json`（user 作用域）或当前项目根目录的 `.mcp.json`（project 作用域）。**你不需要手工编辑这些文件**——CLI 永远知道正确位置和格式，手工改容易写错。需要修改时，用 `claude mcp remove` + `claude mcp add` 重新注册。
 </Callout>
 
 ---
