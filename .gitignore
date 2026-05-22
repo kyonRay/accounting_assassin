@@ -7,3 +7,7 @@ src-tauri/target/
 !.env.example
 *.dmg
 *.bak
+
+# scripts/review-chapter.sh output — regenerated on each run, not source of truth
+content/chapters/*/lesson.review-prompt.md
+content/chapters/*/lesson.review.*.md
