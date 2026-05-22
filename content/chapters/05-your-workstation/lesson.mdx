@@ -47,6 +47,27 @@ source ~/.zprofile
 Intel Mac 的 Homebrew 在 `/usr/local/bin/`，通常不需要这一步。
 </Callout>
 
+<Callout type="warn" title="如果安装速度慢或一直卡住（中国大陆网络）">
+如果 `brew install` 或上面那条 `curl` 安装命令跑得**特别慢**、长时间停在 `fetching` / `cloning`、或者直接超时——这通常是网络问题，不是你做错了什么。
+
+**这部分是可选的，只在你确实遇到速度问题时才需要。** 如果一切顺畅就跳过本段。
+
+以下命令把 Homebrew 切到清华大学开源镜像，下载会快很多：
+
+```
+export HOMEBREW_BOTTLE_DOMAIN=https://mirrors.tuna.tsinghua.edu.cn/homebrew-bottles
+git -C "$(brew --repo)" remote set-url origin https://mirrors.tuna.tsinghua.edu.cn/git/homebrew/brew.git
+git -C "$(brew --repo homebrew/core)" remote set-url origin https://mirrors.tuna.tsinghua.edu.cn/git/homebrew/homebrew-core.git
+brew update
+```
+
+跑完后再回到上面那条 `brew install ...` 重试一次。
+
+⚠️ 至于装 Claude Code 用的 `curl https://claude.ai/install.sh | bash`：这条命令本身没有镜像可换。如果 curl 卡住，可以：
+- 开 VPN/代理后重试，**或**
+- 等装完 Homebrew 后改用下一节"其他安装方式"里的 `brew install --cask claude-code`。
+</Callout>
+
 ---
 
 ## 3. 装 Python
@@ -114,7 +135,7 @@ Claude Code 是本课的核心工具。它是一个命令行界面（CLI），�
   ```
   claude --version
   ```
-  你会看到类似 `claude/2.x.x darwin-arm64` 的输出。
+  你会看到类似 `2.0.x (Claude Code)` 这样单行的输出。版本号会随更新变化,只要看到这一行就算装好。
 </RealStep>
 
 <Callout type="tip" title="其他安装方式">
@@ -138,9 +159,9 @@ Claude Code 是本课的核心工具。它是一个命令行界面（CLI），�
 <Callout type="tip" title="如果 claude 命令找不到">
 安装后如果新开终端还是显示"command not found"，尝试：
 ```
-source ~/.zprofile
+source ~/.zshrc
 ```
-或者直接关闭终端窗口再重新打开。Apple Silicon（M 系列）芯片的 Mac 尤其可能需要这一步。
+如果还不行，再试一下 `source ~/.zprofile`，或者直接关闭终端窗口再重新打开。Apple Silicon（M 系列）芯片的 Mac 尤其可能需要这一步。
 </Callout>
 
 ---
