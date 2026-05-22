@@ -80,31 +80,47 @@
 <Callout type="warn" title="aa-ocr 是 App 帮你装好的">
 `aa-ocr` 工具是记账杀手 App 在「切换到真实环境」时自动安装的（在 Ch 5 的切换流程里）。
 
-如果终端里输入 `aa-ocr --version` 显示「command not found」，说明 App 还没完成安装。请回到 Ch 5 的「真实环境切换」步骤，重新走一遍，让 App 把 symlink 装上。
+想确认它装好了没有，在终端里输入 `which aa-ocr`：
+
+- 如果显示一条路径（例如 `/usr/local/bin/aa-ocr`），说明装好了。
+- 如果什么都没显示，或提示「aa-ocr not found」，说明 App 还没完成安装。请回到 Ch 5 的「真实环境切换」步骤，重新走一遍，让 App 把 symlink 装上。
 
 你**不需要**自己写 OCR 代码，也不需要了解它内部实现细节——那些复杂性都被封装进了这个工具。
 </Callout>
 
-`aa-ocr` 的接口非常简单：
+`aa-ocr` 的接口非常简单——只接受一个参数：发票文件路径。
 
 ```bash
-# 处理单张发票，输出 JSON
+# 处理单张发票，JSON 输出到 stdout
 aa-ocr path/to/invoice.pdf
+```
 
-# 典型的成功输出（exit 0）
+典型的成功输出（exit 0，四个字段全部提取出来）：
+
+```json
 {
-  "date": "2025-03-15",
-  "vendor": "北京某贸易有限公司",
-  "amount": "1234.56",
-  "tax_id": "91110108XXXXXXXX"
+  "source_file": "path/to/invoice.pdf",
+  "fields": {
+    "date":   { "value": "2026-04-15", "confidence": 0.92 },
+    "amount": { "value": 1234.50, "confidence": 0.88, "currency": "CNY" },
+    "vendor": { "value": "上海某某商贸有限公司", "confidence": 0.85 },
+    "tax_id": { "value": "91310000MA1GH5XF2B", "confidence": 0.90 }
+  },
+  "raw_text": "...（OCR 出来的原始文字，省略）..."
 }
 ```
 
-退出码含义：
-- `0` — 全部字段提取成功
-- `4` — 部分字段提取成功（JSON 里缺失的字段值为 `null`）
-- `3` — 无法识别 — 图片质量太低或不支持的格式
-- `2` — 文件不存在或无法读取
+如果某个字段没识别出来，它的 `value` 是 `null`，并多一个 `reason` 字段说明原因（例如 `"未识别"`）。
+
+退出码含义（**JSON 总是输出到 stdout，无论退出码是什么**）：
+
+| 退出码 | 含义 |
+|---|---|
+| `0` | 四个字段（日期、金额、商家、税号）全部提取成功 |
+| `1` | 调用方式错误（例如 `aa-ocr` 后面没跟文件路径） |
+| `2` | 文件不存在 |
+| `3` | 文件存在但完全提取不到文字（图片质量太低、不支持的格式、或扫描件 OCR 失败） |
+| `4` | 部分字段提取成功（1-3 个字段有值，其余为 `null`） |
 
 ### 动手：让 Claude 写 invoice_ocr.py
 
@@ -120,14 +136,20 @@ aa-ocr path/to/invoice.pdf
   帮我在 scripts/ 目录里写一个 invoice_ocr.py 脚本，要求：
   1. 接受一个命令行参数：发票文件路径
   2. 用 subprocess 调用 aa-ocr 处理这个文件
-  3. 解析返回的 JSON，打印格式化的表格：
-     日期 / 商家 / 金额 / 税号
-  4. 如果 aa-ocr 返回退出码 4（部分字段），打印出已提取的字段，
-     并标注哪些字段缺失
-  5. 如果退出码 3（无法识别），打印友好的错误信息，
+  3. aa-ocr 的 JSON 输出是嵌套结构：
+     - data["fields"]["date"]["value"]        日期（字符串或 null）
+     - data["fields"]["amount"]["value"]      金额（数字或 null）
+     - data["fields"]["amount"]["currency"]   币种（通常 "CNY"）
+     - data["fields"]["vendor"]["value"]      商家（字符串或 null）
+     - data["fields"]["tax_id"]["value"]      税号（字符串或 null）
+     每个字段 value 为 null 时，要显示「未识别」而不是报错
+  4. 解析后打印格式化的表格：日期 / 商家 / 金额 / 税号
+  5. 如果 aa-ocr 返回退出码 4（部分字段），照常打印已提取的字段，
+     缺失的字段显示「未识别」
+  6. 如果退出码 3（完全提取不到文字），打印友好的错误信息，
      提示用户检查文件是否为清晰的 PDF/PNG/JPG 格式的发票
-  6. 如果退出码 2（文件不存在），打印友好的错误信息
-  7. 只用标准库（subprocess、json、sys），不要安装额外的包
+  7. 如果退出码 2（文件不存在），打印友好的错误信息
+  8. 只用标准库（subprocess、json、sys），不要安装额外的包
   ```
 
   Claude 会在 `scripts/invoice_ocr.py` 里写好脚本。确认文件创建完成后，输入 `/exit` 退出，然后点「我跑完了」。
@@ -143,18 +165,20 @@ aa-ocr path/to/invoice.pdf
 <RealStep
   id="script-ran-successfully"
   expectsCli="Python3"
-  command="python3 ~/accounting-learner/scripts/invoice_ocr.py ~/accounting-learner/invoices/<发票文件名>"
+  command='python3 "$HOME/accounting-learner/scripts/invoice_ocr.py" "$HOME/accounting-learner/invoices/your_invoice.pdf"'
 >
-  把 `sample.pdf` 换成你实际的发票文件名，然后在终端里运行上面的命令。
+  把上面命令里的 5 个字 (`your_invoice.pdf`) 改成你实际的发票文件名，例如 `2026-04-15-中国移动.pdf`，然后在终端里运行。
+
+  > 路径两边的双引号是故意保留的——这样文件名里如果有空格或中文也不会出问题。
 
   成功时你会看到类似这样的输出：
 
   ```
   ===== 发票信息 =====
-  日期    : 2025-03-15
-  商家    : 北京某贸易有限公司
-  金额    : ¥1,234.56
-  税号    : 91110108XXXXXXXX
+  日期    : 2026-04-15
+  商家    : 上海某某商贸有限公司
+  金额    : ¥1,234.50
+  税号    : 91310000MA1GH5XF2B
   ====================
   ```
 
