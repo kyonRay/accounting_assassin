@@ -27,7 +27,7 @@ invoices-2026-02.csv
 invoices-2026-12.csv
 ```
 
-目标：**算出整年每个类目（餐饮 / 办公 / 差旅 / 云服务 / 工资）的总金额。**
+目标：**算出整年每个类目（餐饮 / 办公 / 差旅 / 云服务 / 通讯）的总金额。**
 
 ---
 
@@ -47,7 +47,7 @@ invoices-2026-12.csv
     <p>让 AI <strong>一次性</strong>写一段 Python</p>
     <p>脚本自动读所有 12 个文件</p>
     <p>第一次跑：12 个月全出来</p>
-    <p>下个月：自己改一行再跑</p>
+    <p>下个月：把新文件放进同一个目录,再跑一次</p>
     <p style={{marginTop: "0.75rem"}}><strong>✓ AI 写 1 次<br />✓ 你跑 N 次<br />✓ 每次结果都可追溯</strong></p>
   </>}
 />
@@ -73,32 +73,50 @@ invoices-2026-12.csv
 
 ## AI 写出来的脚本长这样
 
-这就是 AI 一次性写出的批量处理脚本 —— 简洁、地道，17 行：
+这就是 AI 一次性写出的批量处理脚本 —— 简洁、地道：
 
 ```python
 import csv
 import glob
 from collections import defaultdict
+from datetime import datetime
+from decimal import Decimal
 
-totals = defaultdict(float)
+# 不写死年份 —— 每年自动跟着系统日期走
+year = datetime.now().year
+pattern = f"invoices-{year}-*.csv"
+paths = sorted(glob.glob(pattern))
 
-# 自动找到当前目录下所有 invoices-2026-*.csv 文件
-for path in sorted(glob.glob("invoices-2026-*.csv")):
+# 关键不变量:一年应有 12 个月文件,缺月就告警(不要悄无声息)
+expected = 12
+if len(paths) < expected:
+    print(f"⚠️  警告:只找到 {len(paths)} 个月,期待 {expected} 个 —— 请检查是否漏了月份")
+
+# 用 Decimal 累加金额,避免浮点误差
+totals = defaultdict(lambda: Decimal("0"))
+for path in paths:
     with open(path) as f:
         for row in csv.DictReader(f):
-            totals[row["category"]] += float(row["amount"])
+            totals[row["category"]] += Decimal(row["amount"])
 
 # 按类目名称排序后打印
 for cat in sorted(totals):
-    print(f"{cat}: ¥{totals[cat]:.2f}")
+    print(f"{cat}: ¥{totals[cat]:,.2f}")
 ```
 
 **你不需要理解每一行** —— 只需要看懂它在做什么：
 
-1. `glob.glob("invoices-2026-*.csv")` —— 自动找到所有 12 个月的文件
-2. `csv.DictReader` —— 按列名读每一行
-3. `totals[category] += amount` —— 把金额累加到对应类目
-4. 最后打印每个类目的总金额
+1. `datetime.now().year` + f-string —— 自动用当前年份拼出 glob 模式（明年是 2027 也不用改代码）
+2. `glob.glob(pattern)` —— 自动找到所有月份文件
+3. 缺月告警 —— 让"少了一个月"这种**最危险的会计错误**显式暴露出来，而不是悄悄返回错数字
+4. `Decimal(...)` 累加 —— 避免 `float` 在金钱场景下的精度漂移（你做账时不会想要 `0.1 + 0.2 = 0.30000000000000004` 的结果）
+5. 最后打印每个类目的总金额
+
+<Callout type="note" title="为什么用 Decimal 而不是 float?">
+计算机用 `float` 存小数时会有微小的二进制误差（比如 `0.1 + 0.2` 不严格等于 `0.3`），累加多个月发票后误差会放大。`Decimal` 用十进制精确表示金额，是会计场景的标准做法。
+
+**你不需要记这些细节** —— 只要知道:看到 AI 写出 `Decimal` 而不是 `float` 处理金钱时,它是对的;反过来,看到它写 `float` 处理金钱,你可以提醒它换成 `Decimal`。
+</Callout>
 
 ---
 
@@ -111,11 +129,11 @@ for cat in sorted(totals):
   沙箱把上面那段脚本跑了一遍。它读取了你的 12 个 invoices-2026-MM.csv 文件，输出结果类似这样：
 
   ```
-  云服务: ¥18,432.50
-  办公: ¥12,891.20
-  差旅: ¥21,305.80
-  工资: ¥96,000.00
-  餐饮: ¥28,760.40
+  云服务: ¥29,105.70
+  办公: ¥28,008.68
+  差旅: ¥28,802.17
+  通讯: ¥9,083.00
+  餐饮: ¥27,095.08
   ```
 
   注意：**这些数字是 Python 真的读了 12 个文件算出来的 —— 不是 AI 编的。**
@@ -130,7 +148,7 @@ for cat in sorted(totals):
 <Callout type="insight" title="从'AI 的答案'到'你的工具'">
 刚才那段脚本，在 AI 写完的那一刻，就变成了**你的工具** —— 不再属于 AI。
 
-下个月来了 `invoices-2026-13.csv`？你自己把文件放进同一个目录，再跑一次脚本，结果立刻出来。
+明年 1 月来了 `invoices-2027-01.csv`？你自己把文件放进同一个目录，再跑一次脚本，结果立刻出来 —— **脚本里没有任何地方写死 2026**。
 
 **你不需要再求 AI 第二次。**
 </Callout>
@@ -150,13 +168,12 @@ for cat in sorted(totals):
 >
   假设现在是 2027 年 1 月。你又收到了一批新发票：`invoices-2027-01.csv`。
 
-  你**不需要**重新去问 AI。你只需要：
+  你**不需要**重新去问 AI,也**不需要**改代码。你只需要：
 
   1. 把新文件放进同一个目录
-  2. 把脚本第一行改一个字：`glob.glob("invoices-2026-*.csv")` → `glob.glob("invoices-2027-*.csv")`
-  3. 再跑一次 —— 新的 2027 年汇总立刻出来
+  2. 再跑一次 —— 因为脚本用的是 `datetime.now().year`,它会**自动**切到 2027
 
-  沙箱已经模拟好了这个场景：你会看到 **同一段脚本** 读了 `invoices-2027-01.csv`，输出了新月份的结果。
+  沙箱已经模拟好了这个场景：你会看到 **同一段脚本(一字未改)** 读了 `invoices-2027-01.csv`,并因为只找到 1 个月文件而打印出"⚠️ 只找到 1 个月,期待 12 个"的告警 —— 这正是 AI 写代码时应当帮你显式 check 的关键不变量。
 
   **这就是脚本复用的 lived experience。**
 </SandboxStep>
@@ -176,7 +193,7 @@ for cat in sorted(totals):
     <p style={{marginTop: "0.75rem"}}><strong>投入随月份线性增长</strong></p>
   </>}
   right={<>
-    <p>你的时间：AI 写 1 次 + 你之后改 1 行</p>
+    <p>你的时间：AI 写 1 次,以后每年自动跟着系统日期跑</p>
     <p>AI 参与度：只需 1 次</p>
     <p>可追溯性：代码可审计，结果可复算</p>
     <p>13 月来了怎么办：自己跑</p>

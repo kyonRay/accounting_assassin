@@ -193,16 +193,29 @@ describe("Ch 04 · sandbox 真能跨 12 个月汇总", () => {
       const runner = await createPyodideRunner({ fs });
       await runner.syncFromVfs();
 
+      // Mirrors the script taught in lesson.mdx: datetime.now().year +
+      // Decimal money + missing-month guard. Test fixture is all 2026, so
+      // we pin year=2026 here (lesson uses datetime.now().year — runtime drift
+      // would break a year-pinned test).
       const SCRIPT = `
 import csv
 import glob
 from collections import defaultdict
+from decimal import Decimal
 
-totals = defaultdict(float)
-for path in sorted(glob.glob("invoices-2026-*.csv")):
+year = 2026
+pattern = f"invoices-{year}-*.csv"
+paths = sorted(glob.glob(pattern))
+
+expected = 12
+if len(paths) < expected:
+    print(f"WARN: only {len(paths)} months, expected {expected}")
+
+totals = defaultdict(lambda: Decimal("0"))
+for path in paths:
     with open(path) as f:
         for row in csv.DictReader(f):
-            totals[row["category"]] += float(row["amount"])
+            totals[row["category"]] += Decimal(row["amount"])
 
 for cat in sorted(totals):
     print(f"{cat}: {totals[cat]:.2f}")
