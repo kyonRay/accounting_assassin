@@ -93,19 +93,26 @@ Ch 14 的三个工具覆盖了「发票 OCR → 流水分类 → 报表汇总」
   - README.md                  项目说明
 
   make_vouchers.py 要求：
-  1. 读取 capstone-a/invoice-ocr/outputs/ 下最新的 invoice_summary_YYYY-MM.xlsx
+  1. 读取 ~/accounting-learner/capstone-a/invoice-ocr/outputs/ 下最新的 invoice_summary_YYYY-MM.xlsx
      取「主表」sheet 里的发票记录（列：日期/商家/金额/税号/文件名）
-  2. 读取 capstone-a/bank-classifier/outputs/ 下最新的 bank_classified_YYYY-MM.csv
+  2. 读取 ~/accounting-learner/capstone-a/bank-classifier/outputs/ 下最新的 bank_classified_YYYY-MM.csv
      取全部分类记录（列：日期/摘要/金额/分类 等）
   3. 按「日期相差<=1天 AND 金额相差<=0.01」做模糊匹配，配对发票与银行流水
   4. 对每对匹配记录，生成一行凭证：
      - 凭证号（YYYY-MM-序号，如 2026-05-001）
      - 日期（取发票日期）
      - 摘要（银行摘要字段）
-     - 借方科目（根据银行分类映射：餐饮→管理费用-餐饮，交通→管理费用-交通，
-       办公→管理费用-办公用品，快递→管理费用-快递，其它→管理费用-其它）
-     - 贷方科目（固定写「银行存款」）
-     - 金额（发票金额）
+     - 方向判断（根据银行流水金额正负或收/支标记）：
+       * 出账（支出，金额 < 0 或收支标记为「支」）：
+         借方科目 ∈ [管理费用-餐饮 / 管理费用-差旅 / 管理费用-交通 /
+                     管理费用-办公用品 / 管理费用-快递 / 管理费用-招待 /
+                     管理费用-租赁 / 管理费用-水电 / 管理费用-福利 /
+                     税金及附加 / 财务费用 / 管理费用-其他]
+         贷方科目 = 银行存款
+       * 入账（收入，金额 > 0 或收支标记为「收」）：
+         借方科目 = 银行存款
+         贷方科目 ∈ [主营业务收入 / 应收账款 / 营业外收入 / 财务费用-利息收入]
+     - 金额（取绝对值）
   5. 未匹配的银行记录和未匹配的发票记录，分别写入「待核查-银行」和「待核查-发票」sheet
   6. 输出到 outputs/vouchers_YYYY-MM.xlsx（三个 sheet：凭证/待核查-银行/待核查-发票）
   7. 运行结束打印：生成凭证 X 张，待核查-银行 Y 笔，待核查-发票 Z 张
@@ -120,6 +127,21 @@ Ch 14 的三个工具覆盖了「发票 OCR → 流水分类 → 报表汇总」
   如果 capstone-a 的 inputs/ 是空的（你还没有真实发票/流水），`make_vouchers.py` 在找不到文件时应该打印提示后退出——这也是正确的输出。
 
   或者让 Claude 给脚本加一个 `--demo` 参数，用假数据走一遍完整流程（生成凭证 + 两个「待核查」sheet），验证逻辑正确。
+  </Callout>
+
+  <Callout type="insight" title="为什么借贷方向要根据收支判断，而不是固定写银行存款？">
+  凭证的核心规则是**借贷平衡、方向正确**。银行存款是一个资产类科目：
+
+  - **出账**（付款）：银行存款减少 → 贷方写银行存款；费用科目增加 → 借方写费用科目
+  - **入账**（收款）：银行存款增加 → **借方写银行存款**；收入/应收款减少 → 贷方写收入科目
+
+  如果把贷方固定写「银行存款」，收款凭证就会变成「借主营业务收入 / 贷银行存款」——借贷方向完全反了，任何审计软件都会报错。
+
+  脚本里的分类映射只是**起步集合**，实际业务中：
+  - 美团外卖可能是招待费（接待客户）、福利费（员工加班餐）或管理费用（日常订餐），要根据摘要和审批单来判断
+  - 真实企业的科目表通常有 20+ 个末级费用科目
+
+  脚本让 Claude 做初步分类，你负责最终审核——这是 AI 辅助记账的正确分工。
   </Callout>
 </RealStep>
 
@@ -166,7 +188,7 @@ Python 脚本可以把四个脚本串成一个 `run_all.py`，但它是静态的
 
   ### 第一步：发票批量 OCR（invoice-ocr）
 
-  运行 capstone-a/invoice-ocr/scripts/batch_ocr.py
+  运行 ~/accounting-learner/capstone-a/invoice-ocr/scripts/batch_ocr.py
   输入：~/accounting-learner/capstone-a/invoice-ocr/inputs/
   输出：~/accounting-learner/capstone-a/invoice-ocr/outputs/invoice_summary_YYYY-MM.xlsx
 
@@ -174,13 +196,13 @@ Python 脚本可以把四个脚本串成一个 `run_all.py`，但它是静态的
 
   ### 第二步：银行流水分类（bank-classifier）
 
-  运行 capstone-a/bank-classifier/scripts/bank_classify.py
+  运行 ~/accounting-learner/capstone-a/bank-classifier/scripts/bank_classify.py
   输入：~/accounting-learner/capstone-a/bank-classifier/inputs/ 下第一个 CSV
   输出：~/accounting-learner/capstone-a/bank-classifier/outputs/bank_classified_YYYY-MM.csv
 
   ### 第三步：凭证生成（voucher-gen）
 
-  运行 capstone-b/voucher-gen/scripts/make_vouchers.py
+  运行 ~/accounting-learner/capstone-b/voucher-gen/scripts/make_vouchers.py
   输入：第一步和第二步的输出文件
   输出：~/accounting-learner/capstone-b/voucher-gen/outputs/vouchers_YYYY-MM.xlsx
 
@@ -188,9 +210,9 @@ Python 脚本可以把四个脚本串成一个 `run_all.py`，但它是静态的
 
   ### 第四步：月报汇总（report-aggregator）
 
-  运行 capstone-a/report-aggregator/scripts/aggregate.py
+  运行 ~/accounting-learner/capstone-a/report-aggregator/scripts/aggregate.py
   把 invoice_summary_YYYY-MM.xlsx 和 vouchers_YYYY-MM.xlsx 都放入
-  capstone-a/report-aggregator/inputs/ 后运行汇总
+  ~/accounting-learner/capstone-a/report-aggregator/inputs/ 后运行汇总
   输出：~/accounting-learner/capstone-a/report-aggregator/outputs/aggregated_YYYY-MM.xlsx
 
   最后把 aggregated_YYYY-MM.xlsx 重命名为 month_end_YYYY-MM.xlsx 并移到
@@ -210,6 +232,10 @@ Python 脚本可以把四个脚本串成一个 `run_all.py`，但它是静态的
   Skill 靠 `description` 字段做语义匹配——Claude 读到「帮我做本月结账」这句话时，会在 `~/.claude/skills/` 下找和这个描述最接近的 SKILL.md，然后按里面的步骤来做。
 
   写得越像你平时说话的方式，识别越准。
+  </Callout>
+
+  <Callout type="tip" title="为什么用绝对路径？">
+  Claude 启动会话的目录每次可能不同——从桌面启动和从项目目录启动，当前目录就不一样。Skill 里写绝对路径（`~/accounting-learner/...`），无论从哪里启动都能找到文件；写相对路径则在会话目录不对时直接报「文件不存在」。
   </Callout>
 </RealStep>
 
@@ -239,7 +265,7 @@ Python 脚本可以把四个脚本串成一个 `run_all.py`，但它是静态的
           "hooks": [
             {
               "type": "command",
-              "command": "echo \"[$(date '+%Y-%m-%d %H:%M:%S')] Edit: $CLAUDE_TOOL_INPUT_PATH\" >> ~/accounting-learner/.month-end.log"
+              "command": "echo \"[$(date '+%Y-%m-%d %H:%M:%S')] Edit: $(jq -r '.tool_input.file_path // empty')\" >> ~/accounting-learner/.month-end.log"
             }
           ]
         }
@@ -247,6 +273,19 @@ Python 脚本可以把四个脚本串成一个 `run_all.py`，但它是静态的
     }
   }
   ```
+
+  <Callout type="tip" title="为什么用 jq 而不是环境变量？">
+  Claude Code 的 Hook 通过**标准输入（stdin）**传入一个 JSON 对象，包含触发事件的详细信息。
+  要提取其中的字段（比如被编辑文件的路径 `tool_input.file_path`），需要用 `jq` 解析 stdin。
+
+  `$CLAUDE_TOOL_INPUT_PATH` 这样的环境变量并不存在——Hook 的输入通道是 stdin，不是环境变量。
+
+  如果还没有安装 `jq`：
+  ```bash
+  brew install jq
+  ```
+  （Ch 5 已装好 Homebrew，直接运行即可）
+  </Callout>
 
   <Callout type="warn" title="如果文件已存在，只合并 hooks 部分">
   如果 `settings.local.json` 已经有其他配置（Ch 10 写过），**不要直接覆盖整个文件**。只把 `"hooks": { ... }` 这一段合并进已有的 JSON 对象里。遇到不确定的情况，把文件内容复制给 Claude，说「帮我把这段 hooks 配置合并进去」。
