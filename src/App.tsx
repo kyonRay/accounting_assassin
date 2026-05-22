@@ -6,6 +6,7 @@ import { Terminal, type TerminalApi } from "@/modules/Sandbox";
 import { ModeIndicator } from "@/components/ModeIndicator";
 import { ModeTransition } from "@/components/ModeTransition";
 import { StuckButton } from "@/components/StuckButton";
+import { Settings } from "@/components/Settings";
 import { CHAPTERS } from "@/curriculum";
 
 export default function App() {
@@ -21,6 +22,9 @@ export default function App() {
       <>
         <WelcomeFlow onComplete={completeOnboarding} />
         <StuckButton />
+        <div className="fixed bottom-4 left-4 z-40">
+          <Settings />
+        </div>
       </>
     );
   }
@@ -62,6 +66,9 @@ export default function App() {
           onCancel={() => setCurrentChapter(lastSandboxChapter)}
         />
         <StuckButton />
+        <div className="fixed bottom-4 left-4 z-40">
+          <Settings />
+        </div>
       </>
     );
   }
@@ -99,8 +106,9 @@ export default function App() {
           </div>
         </aside>
 
-        <footer className="col-span-full bg-cream border-t border-graphite/10 px-4 flex items-center text-xs text-muted">
-          进度 {completedCount}/15
+        <footer className="col-span-full bg-cream border-t border-graphite/10 px-4 flex items-center justify-between text-xs text-muted">
+          <span>进度 {completedCount}/15</span>
+          <Settings />
         </footer>
       </div>
       <StuckButton />
