@@ -1290,28 +1290,44 @@ Each chapter's first `<RealStep>` includes external-tool health check + graceful
 
 # Phase 7 · Week 7 — Part V capstones
 
-**Milestone deliverable:** Ch 14-15 complete; learner can build and run all 3 graduation utilities.
+**Milestone deliverable:** Ch 14-15 complete; learner can build and run all 3 graduation utilities + the orchestrated month-end-close workflow.
 
-## Task 7.1: Ch 14 capstone A (three utilities)
+> **Decision recorded 2026-05-22** — Template scaffolding for Ch 14 is **Claude-driven via MDX**, NOT via a new Tauri "copy template" command:
+> - lesson.mdx embeds the scaffold prompt for each utility as a code block inside a `<RealStep>` whose `command` opens Claude (`cd ~/accounting-learner && claude`)
+> - User pastes the prompt to Claude in their own terminal; Claude creates the project files
+> - No new Tauri IPC, no React TemplatePicker UI, no `content/chapters/14-capstone-a/templates/` subdirectory
+> - This honors CLAUDE.md's "each chapter is a self-contained directory" and "App shows commands, user runs them" principles
+> - Reverses the earlier "App copies chosen template to ..." plan wording
 
-- [ ] Create starter templates under `content/chapters/14-capstone-a/templates/{invoice-ocr,bank-classifier,report-aggregator}/`
-- [ ] App copies chosen template to `~/accounting-learner/capstone-a/<project>/` on selection
-- [ ] checker.ts verifies each project's expected output structure (read JSON / XLSX outputs)
-- [ ] Standard TDD pattern
-- [ ] Commit
+## Task 7.1: Ch 14 capstone A — three Claude-scaffolded utilities ✅ done
 
-## Task 7.2: Ch 15 capstone B + final quiz
+- [x] Each of the three utilities (`invoice-ocr/`, `bank-classifier/`, `report-aggregator/`) gets a scaffold step + run step in lesson.mdx
+- [x] Scaffold steps are MDX-embedded Claude prompts the user pastes to Claude in their own terminal
+- [x] Walks user through `pip3 install --user pandas openpyxl` (with `--break-system-packages` hedge for Brew Python 3.12+); first introduction of pandas/openpyxl per Ch 7 README's deferred-until-Ch-14 constraint
+- [x] 降级流 (OCR exit 4 → 人填 → AI 校验) is taught **explicitly** as the core teaching per spec § 5.3.1.3 — its own section, concrete 3-sheet Excel structure (主表 / 需手填 / 失败), and a worked AI-validation Claude prompt
+- [x] Standard TDD: test.ts → checker.ts → lesson.mdx → README.md, all 4 files under `content/chapters/14-capstone-a/`
+- [x] Closing `capstone-a-reviewed` reflection step points at Ch 15 as the integration synthesis
+- [x] Commits: `52c1f7e` (initial) · `6d9a341` (AI-validation promotion + pandas dedupe) · `0c39edb` (reformat-robust exit-code regex)
 
-- [ ] Month-end close end-to-end workflow scaffold
-- [ ] Skill + Hook coordination teaching
-- [ ] Comprehensive final quiz.yaml (cross-chapter recall)
-- [ ] Standard TDD
-- [ ] Commit
+## Task 7.2: Ch 15 capstone B — month-end orchestration + final quiz ✅ done
+
+- [x] End-to-end "月末结账" workflow combining Ch 14's three utilities + a new `voucher-gen` step
+- [x] Voucher generation script (新增) is also Claude-scaffolded inline — joins Ch 14's `invoice_summary` + `bank_classified` outputs into a vouchers CSV (借方/贷方/金额/摘要)
+- [x] Skill (`~/.claude/skills/month-end-close/SKILL.md`) orchestrates the 4 steps — recalls Ch 9 SKILL.md teaching exactly
+- [x] Hook (`PostToolUse` + `matcher: "Edit"` in `~/accounting-learner/.claude/settings.local.json`) logs edits — recalls Ch 10 hook teaching exactly. Marker id is `hook-capstone-b-installed` (renamed from `hook-installed` to avoid namespace collision with Ch 10)
+- [x] Climax `workflow-run` step: user says "帮我做本月结账" → Claude finds the Skill → runs all 4 steps → produces `~/accounting-learner/outputs/month_end_<YYYY-MM>.xlsx`
+- [x] Final cross-chapter `quiz.yaml` — 8 questions spanning Ch 5/7/8/9/10/11/12/13/14: env rationale, CLAUDE.md, `git restore .` (with `git checkout .` as TRAP wrong answer), Skill judgment, Skill/Hook/MCP distinction, Claude vs Codex default behavior, Cursor's 3 features, aa-ocr exit-4 降级流
+- [x] Course-finale framing in closing `reflection-completed` step — capability summary table, "把这个模式推广" generalization, ending Callout
+- [x] Standard TDD: 5 files (test/checker/lesson/quiz/README) under `content/chapters/15-capstone-b/`
+- [x] Commits: `1093883` (initial) · hook-id rename commit
 
 ## Week 7 Acceptance
 
-- [ ] Both capstones runnable end-to-end on test data
-- [ ] Final quiz tests pass
+- [x] All 15 chapter test files pass (171/171)
+- [x] `pnpm typecheck` + `pnpm lint` clean
+- [x] Ch 15's final quiz factually accurate to Ch 8/10/11/12/13/14 source content (cross-chapter review pass)
+- [x] No `git checkout .` taught; `git restore .` discipline maintained throughout new content
+- [x] No new Rust/React/curriculum.ts changes — Week 7 is content-only as the spec's "chapter = self-contained directory" rule prescribes
 
 ---
 
