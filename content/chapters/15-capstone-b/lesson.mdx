@@ -72,9 +72,45 @@ Ch 14 的三个工具覆盖了「发票 OCR → 流水分类 → 报表汇总」
 | 2026-05-001 | 2026-05-03 | 顺丰快递 | 管理费用-快递 | 银行存款 | 28.00 |
 | 2026-05-002 | 2026-05-07 | 美团外卖 | 管理费用-餐饮 | 银行存款 | 136.50 |
 
-**做法**：把 bank-classifier 的分类结果（已知借方科目）和 invoice-ocr 的 Excel 汇总（已知日期/商家/金额）按「日期+金额」对应配对，输出标准格式的凭证 CSV。
+**做法**：把 bank-classifier 的分类结果（业务分类标签）和 invoice-ocr 的 Excel 汇总（已知日期/商家/金额）按「日期+金额」对应配对，再用**科目映射表**把业务标签翻译成借方科目，输出标准格式的凭证 CSV。
 
-不匹配的行（有银行记录但找不到对应发票，或反之）单独列一个「待核查」sheet，等你手动处理。
+匹配不上的行（有银行记录但找不到对应发票，或反之，或科目映射表里没有这个标签）单独列到 `unmatched.csv` 和「待核查」sheet，等你手动处理。
+
+### 关键概念：分类标签 ≠ 借方科目
+
+bank-classifier 输出的「分类」列（如 `餐饮`、`办公`、`差旅`）是**业务分类标签**——它告诉你这笔钱花在什么类型的业务上。但凭证里的「借方科目」是会计科目表里的标准名称（如 `管理费用-业务招待费`），格式固定、和企业的科目表一一对应。
+
+**这两者不是一回事**——同一个业务标签在不同企业可能对应不同的末级科目，且新员工餐和招待客户餐的科目也不同。所以中间需要一张「分类标签 → 借方科目」的映射表：
+
+```python
+# subject_map.py（建议放在 capstone-b/voucher-gen/scripts/ 下，单独一个文件方便修改）
+# 注意：这张表是「会计自己改的」，不是 AI 决定的。
+# AI 用这张表去映射；遇到表里没有的标签 → 进 unmatched.csv，等会计判断。
+subject_map = {
+    "餐饮":   "管理费用-业务招待费",
+    "办公":   "管理费用-办公费",
+    "差旅":   "管理费用-差旅费",
+    "交通":   "管理费用-交通费",
+    "通讯":   "管理费用-通讯费",
+    "云服务": "管理费用-IT服务费",
+    "快递":   "管理费用-邮电费",
+    "租赁":   "管理费用-租赁费",
+    "水电":   "管理费用-水电费",
+    "福利":   "应付职工薪酬-福利费",
+    "工资":   "应付职工薪酬-工资",
+    "税金":   "税金及附加",
+    "利息":   "财务费用-利息支出",
+    "手续费": "财务费用-手续费",
+    "收入":   "主营业务收入",     # 入账方向用
+    "退款":   "其他应付款",
+}
+```
+
+<Callout type="warn" title="为什么不让 AI 自动选择借方科目？">
+科目选择影响审计、税务、报表科目余额——错一个，月报里整张表就要重做。会计科目表是企业财务制度的一部分，必须由会计本人维护、明文写死，不能让 AI 推测。
+
+AI 的职责到「按映射表翻译」为止；遇到表里没有的标签，AI **不**默认填「管理费用-其他」，而是**全部进 `unmatched.csv`**，会计逐一判断后再决定加哪条新映射。
+</Callout>
 
 ### 动手：让 Claude 搭建 voucher-gen 项目
 
@@ -89,33 +125,42 @@ Ch 14 的三个工具覆盖了「发票 OCR → 流水分类 → 报表汇总」
 
   目录结构：
   - scripts/make_vouchers.py   主脚本
-  - outputs/                   凭证 CSV 输出目录（已存在，不用创建）
+  - scripts/subject_map.py     科目映射表（业务分类标签 → 借方/贷方科目）
+  - outputs/                   凭证输出目录（已存在，不用创建）
   - README.md                  项目说明
+
+  subject_map.py 要求：
+    定义两个 dict：
+      DEBIT_MAP  : 出账方向的「分类标签 → 借方科目」（出账时，贷方固定 = 银行存款）
+      CREDIT_MAP : 入账方向的「分类标签 → 贷方科目」（入账时，借方固定 = 银行存款）
+    初始内容用我下面在课文里给的那张映射表为模板。
 
   make_vouchers.py 要求：
   1. 读取 ~/accounting-learner/capstone-a/invoice-ocr/outputs/ 下最新的 invoice_summary_YYYY-MM.xlsx
      取「主表」sheet 里的发票记录（列：日期/商家/金额/税号/文件名）
   2. 读取 ~/accounting-learner/capstone-a/bank-classifier/outputs/ 下最新的 bank_classified_YYYY-MM.csv
-     取全部分类记录（列：日期/摘要/金额/分类 等）
-  3. 按「日期相差<=1天 AND 金额相差<=0.01」做模糊匹配，配对发票与银行流水
-  4. 对每对匹配记录，生成一行凭证：
-     - 凭证号（YYYY-MM-序号，如 2026-05-001）
-     - 日期（取发票日期）
-     - 摘要（银行摘要字段）
-     - 方向判断（根据银行流水金额正负或收/支标记）：
-       * 出账（支出，金额 < 0 或收支标记为「支」）：
-         借方科目 ∈ [管理费用-餐饮 / 管理费用-差旅 / 管理费用-交通 /
-                     管理费用-办公用品 / 管理费用-快递 / 管理费用-招待 /
-                     管理费用-租赁 / 管理费用-水电 / 管理费用-福利 /
-                     税金及附加 / 财务费用 / 管理费用-其他]
-         贷方科目 = 银行存款
-       * 入账（收入，金额 > 0 或收支标记为「收」）：
-         借方科目 = 银行存款
-         贷方科目 ∈ [主营业务收入 / 应收账款 / 营业外收入 / 财务费用-利息收入]
-     - 金额（取绝对值）
-  5. 未匹配的银行记录和未匹配的发票记录，分别写入「待核查-银行」和「待核查-发票」sheet
-  6. 输出到 outputs/vouchers_YYYY-MM.xlsx（三个 sheet：凭证/待核查-银行/待核查-发票）
-  7. 运行结束打印：生成凭证 X 张，待核查-银行 Y 笔，待核查-发票 Z 张
+     取全部分类记录（列：日期/摘要/金额/分类 等；金额负数 = 出账，正数 = 入账）
+  3. 按「**同日 + 同金额 (±0.01)**」做精确匹配，配对银行流水与发票（注意：金额比较用绝对值）
+     —— 故意保守的规则。信用卡入账日错位 >1 天的情况很常见，宁可手动多配，也不要错配。
+  4. 对每条银行流水（已匹配或未匹配都判断方向）：
+     - 方向：金额 < 0 → 出账；金额 > 0 → 入账
+     - 出账：在 DEBIT_MAP 里查「分类」字段
+         * 命中 → 借方 = 查表结果，贷方 = 银行存款
+         * 未命中 → **整行进 unmatched.csv（reason = "无科目映射"）**，不要默认填「管理费用-其他」
+     - 入账：在 CREDIT_MAP 里查「分类」字段，规则同上（借方 = 银行存款，贷方 = 查表结果）
+     - 金额取绝对值
+     - 凭证号格式 YYYY-MM-序号（如 2026-05-001）
+     - 日期：有匹配发票 → 发票日期；无匹配 → 银行日期
+     - 摘要：银行摘要字段
+  5. 同时写两份输出：
+     - outputs/vouchers_YYYY-MM.xlsx
+         · sheet「凭证」：方向 + 科目都明确的行
+         · sheet「待核查-银行」：本月银行流水里没找到对应发票的行
+         · sheet「待核查-发票」：本月发票里没找到对应流水的行
+     - outputs/unmatched_YYYY-MM.csv
+         · 所有「科目映射表里没有这个分类标签」的行，列：原始分类/银行日期/摘要/金额/reason
+         · **此表为空** 比「都默认填管理费用-其他」更安全 —— 会计要看的就是这张表
+  6. 运行结束打印：生成凭证 X 张，待核查-银行 Y 笔，待核查-发票 Z 张，无科目映射 W 行（见 unmatched_YYYY-MM.csv）
 
   只用 pandas、openpyxl、pathlib、datetime、sys。
   如果输入文件不存在，打印提示后正常退出（不崩溃）。
@@ -137,11 +182,25 @@ Ch 14 的三个工具覆盖了「发票 OCR → 流水分类 → 报表汇总」
 
   如果把贷方固定写「银行存款」，收款凭证就会变成「借主营业务收入 / 贷银行存款」——借贷方向完全反了，任何审计软件都会报错。
 
-  脚本里的分类映射只是**起步集合**，实际业务中：
+  所以脚本里 `DEBIT_MAP` 和 `CREDIT_MAP` 是两张表 —— 出账查前者，入账查后者。
+
+  脚本里的映射表只是**起步集合**，实际业务中：
   - 美团外卖可能是招待费（接待客户）、福利费（员工加班餐）或管理费用（日常订餐），要根据摘要和审批单来判断
   - 真实企业的科目表通常有 20+ 个末级费用科目
 
-  脚本让 Claude 做初步分类，你负责最终审核——这是 AI 辅助记账的正确分工。
+  脚本让 Claude 做初步映射，遇到映射表里没有的标签就**老老实实进 unmatched.csv**，你负责最终审核——这是 AI 辅助记账的正确分工。
+  </Callout>
+
+  <Callout type="warn" title="为什么匹配规则要保守（同日 + 同金额），而不是「相差 1 天也算」？">
+  真实银行数据里有几类容易让宽匹配规则误配的情况：
+
+  - **信用卡入账日错位**：商户结算和银行入账时间差 1-3 天很常见，且不固定
+  - **同日重复金额**：一天里多次刷同样金额（如多次打车），没有发票锚点根本无法区分
+  - **工资/税金/利息**：根本没有对应发票，宽匹配会把它们错配到任意金额接近的发票上
+
+  保守规则的代价：手动配对的笔数会多一些 —— 但**错配比漏配难得多发现**，错配会污染整个月的凭证账。
+
+  会计宁可花 5 分钟手动配 20 笔进了「待核查-银行」的记录，也不要让 AI 把 20 笔错配上交报表。
   </Callout>
 </RealStep>
 
@@ -204,9 +263,13 @@ Python 脚本可以把四个脚本串成一个 `run_all.py`，但它是静态的
 
   运行 ~/accounting-learner/capstone-b/voucher-gen/scripts/make_vouchers.py
   输入：第一步和第二步的输出文件
-  输出：~/accounting-learner/capstone-b/voucher-gen/outputs/vouchers_YYYY-MM.xlsx
+  输出：
+    - ~/accounting-learner/capstone-b/voucher-gen/outputs/vouchers_YYYY-MM.xlsx
+    - ~/accounting-learner/capstone-b/voucher-gen/outputs/unmatched_YYYY-MM.csv
 
-  如果「待核查」sheet 非空，告知用户有多少行待核查，让用户决定是否继续。
+  如果「待核查」sheet 非空 或 unmatched_YYYY-MM.csv 非空，
+  把行数报给用户，等用户处理完（补 subject_map、手动配对）再决定是否继续第四步。
+  绝对不要默认填「管理费用-其他」把 unmatched 行混入主表。
 
   ### 第四步：月报汇总（report-aggregator）
 
@@ -241,14 +304,36 @@ Python 脚本可以把四个脚本串成一个 `run_all.py`，但它是静态的
 
 ---
 
-## 5. 安装 Hook：capstone-b 文件变化自动写日志
+## 5. 安装 Hook：accounting-learner 文件变化自动写日志
 
-这一步是可选的加分项，但很值得做——它让你知道「这个月 Claude 在 capstone-b 里动了哪些文件」，万一出问题有日志可查。
+这一步是可选的加分项，但很值得做——它让你知道「这个月 Claude 在 `~/accounting-learner/` 里动了哪些文件」，万一出问题有日志可查。
 
 **原理**（和 Ch 10 完全一样）：
 
-- `PostToolUse` + `matcher: "Edit"` — 每次 Claude 用 Edit 工具修改文件后触发
-- 命令只做一件事：把时间戳和文件名追加写入日志文件（只追加，不删除，永远安全）
+- `PostToolUse` + `matcher: "Edit|Write|MultiEdit"` — Claude 用任意一种「写文件」工具之后触发
+- 命令只做一件事：如果被改的文件在 `~/accounting-learner/` 下，就把时间戳、工具名、文件路径追加写入日志文件（只追加，不删除，永远安全）
+
+<Callout type="warn" title="为什么 matcher 要写三种工具，不只是 Edit？">
+- `Edit` 只匹配「修改已存在的文件」
+- `Write` 用于「写新文件」（voucher-gen 项目里 Claude 创建 `make_vouchers.py` 走的就是 Write，不是 Edit）
+- `MultiEdit` 是「一次会话里改多个文件」
+
+只写 `"Edit"` 的话，本章 voucher-gen 项目的脚手架步骤一条日志都不会留下 —— 那就失去了「Claude 这次月结改了哪些文件」的全部价值。
+</Callout>
+
+### 第 0 步：装 jq（这个 hook 用 jq 读 stdin）
+
+<Callout type="warn" title="先确认 jq 已安装，否则 hook 会静默失败">
+Claude Code 的 Hook 通过**标准输入（stdin）**传入一个 JSON 对象，要提取其中的 `tool_input.file_path` 字段需要用 `jq`。
+
+打开终端跑：
+
+```bash
+command -v jq >/dev/null 2>&1 || brew install jq
+```
+
+如果终端里啥都不打印 → 你已经装过了。如果开始安装 → 等装完。**不装 jq 这个 hook 会写出空文件名 `<jq-missing>`，但 hook 本身不报错** —— 这种「悄悄出错」的状态最难调。
+</Callout>
 
 <RealStep
   id="hook-capstone-b-installed"
@@ -261,11 +346,11 @@ Python 脚本可以把四个脚本串成一个 `run_all.py`，但它是静态的
     "hooks": {
       "PostToolUse": [
         {
-          "matcher": "Edit",
+          "matcher": "Edit|Write|MultiEdit",
           "hooks": [
             {
               "type": "command",
-              "command": "echo \"[$(date '+%Y-%m-%d %H:%M:%S')] Edit: $(jq -r '.tool_input.file_path // empty')\" >> ~/accounting-learner/.month-end.log"
+              "command": "INPUT=$(cat); TOOL=$(echo \"$INPUT\" | jq -r '.tool_name // \"<unknown>\"' 2>/dev/null || echo '<jq-missing>'); FILE=$(echo \"$INPUT\" | jq -r '.tool_input.file_path // \"<empty>\"' 2>/dev/null || echo '<jq-missing>'); case \"$FILE\" in \"$HOME/accounting-learner/\"*) echo \"[$(date '+%Y-%m-%d %H:%M:%S')] $TOOL: $FILE\" >> \"$HOME/accounting-learner/.month-end.log\" ;; esac"
             }
           ]
         }
@@ -274,30 +359,45 @@ Python 脚本可以把四个脚本串成一个 `run_all.py`，但它是静态的
   }
   ```
 
-  <Callout type="tip" title="为什么用 jq 而不是环境变量？">
-  Claude Code 的 Hook 通过**标准输入（stdin）**传入一个 JSON 对象，包含触发事件的详细信息。
-  要提取其中的字段（比如被编辑文件的路径 `tool_input.file_path`），需要用 `jq` 解析 stdin。
-
-  `$CLAUDE_TOOL_INPUT_PATH` 这样的环境变量并不存在——Hook 的输入通道是 stdin，不是环境变量。
-
-  如果还没有安装 `jq`：
-  ```bash
-  brew install jq
-  ```
-  （Ch 5 已装好 Homebrew，直接运行即可）
+  <Callout type="insight" title="这条 command 在做什么 —— 逐段解释">
+  1. `INPUT=$(cat)` — 把 stdin 读进变量（Hook 的输入通道是 stdin，不是环境变量）
+  2. `TOOL=$(echo "$INPUT" | jq -r '.tool_name // "<unknown>"' ...)` — 提取工具名（Edit/Write/MultiEdit），jq 不存在时退回 `<jq-missing>` 而不是写空字符串
+  3. `FILE=$(... '.tool_input.file_path // "<empty>"' ...)` — 提取文件路径，同样的兜底
+  4. `case "$FILE" in "$HOME/accounting-learner/"*) ... ;; esac` — **关键：只在文件路径以 `~/accounting-learner/` 开头时才写日志**。这样即便 hook 是 user 级配置（在所有项目里都触发），也只记录本工作目录的事 —— 不会把你别的项目里的 Edit 操作写进月结日志。
   </Callout>
 
   <Callout type="warn" title="如果文件已存在，只合并 hooks 部分">
   如果 `settings.local.json` 已经有其他配置（Ch 10 写过），**不要直接覆盖整个文件**。只把 `"hooks": { ... }` 这一段合并进已有的 JSON 对象里。遇到不确定的情况，把文件内容复制给 Claude，说「帮我把这段 hooks 配置合并进去」。
   </Callout>
 
-  配置完成后，打开一个新的 Claude Code 会话，让它随便编辑一个 capstone-b 里的文件，然后检查日志是否出现了记录：
+  ### 测试 hook 真的工作了（不只是「有一行字」）
+
+  配置完成后，打开一个**新的** Claude Code 会话，让它在 `~/accounting-learner/capstone-b/` 下随便建或改一个文件，比如：
+
+  ```
+  在 ~/accounting-learner/capstone-b/voucher-gen/ 下创建一个空的 NOTES.md，内容写「测试 hook」
+  ```
+
+  然后在另一个终端里检查日志：
 
   ```bash
   cat ~/accounting-learner/.month-end.log
   ```
 
-  看到时间戳记录之后，点「我跑完了」。
+  你应该看到类似：
+
+  ```
+  [2026-05-22 10:23:45] Write: /Users/你/accounting-learner/capstone-b/voucher-gen/NOTES.md
+  ```
+
+  **三项缺一不可**：
+  1. 有时间戳
+  2. 有工具名（`Write` 或 `Edit` 或 `MultiEdit`，**不是 `<unknown>` 或 `<jq-missing>`**）
+  3. 有真实文件路径（**不是 `<empty>` 或 `<jq-missing>`**）
+
+  如果工具名或文件路径出现 `<jq-missing>` → 回到「第 0 步：装 jq」补装一下。
+
+  全部 OK 之后，点「我跑完了」。
 </RealStep>
 
 ---
