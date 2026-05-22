@@ -17,31 +17,14 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
-    // Record the crash into the process-local crash store so that
-    // the next "我卡住了" diagnostic report automatically includes it.
-    // Sanitization (stack trimming + ~/... rewrite) happens inside the store.
-    try {
-      useCrashStore.getState().recordCrash(error);
-    } catch {
-      // The crash store itself must never fail the error boundary.
-      // If zustand somehow throws here, we still want to render fallback UI.
-    }
+    useCrashStore.getState().recordCrash(error);
     console.error("App crashed:", error, info);
   }
 
   reset = () => this.setState({ error: null });
 
   openStuck = () => {
-    // Fire a global event the StuckButton listens for. Decoupling via
-    // window.dispatchEvent means we don't need to inject the StuckButton
-    // instance into the error boundary — and the help affordance keeps
-    // working even if the StuckButton tree is mounted elsewhere.
-    try {
-      window.dispatchEvent(new CustomEvent(STUCK_EVENT));
-    } catch {
-      // Older or test environments without CustomEvent — silently noop.
-      // The "重试" button is still available.
-    }
+    window.dispatchEvent(new CustomEvent(STUCK_EVENT));
   };
 
   render() {
