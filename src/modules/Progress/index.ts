@@ -6,3 +6,5 @@ export type {
   AppMode,
 } from "./store";
 export { progressStorage } from "./persistence";
+export { useCrashStore, sanitizeStack } from "./crashStore";
+export type { CrashRecord, CrashStoreState } from "./crashStore";
