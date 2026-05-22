@@ -265,4 +265,19 @@ describe("Ch 14 · lesson.mdx", () => {
     expect(text).toMatch(/需手填|手工填写|人工填/);
     expect(text).toMatch(/失败|sheet|Sheet/);
   });
+
+  it("lesson.mdx AI 校验步骤是核心流（含跨字段合理性检查提示词）", async () => {
+    const nodeFs = await import("node:fs/promises");
+    const nodePath = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const dir = nodePath.dirname(fileURLToPath(import.meta.url));
+    const text = await nodeFs.readFile(
+      nodePath.resolve(dir, "lesson.mdx"),
+      "utf-8",
+    );
+    // AI validation must appear as a concrete instructional beat, not optional
+    expect(text).toMatch(/AI 校验|交给 Claude.*校验|合理性检查/);
+    // Must NOT frame AI validation as optional
+    expect(text).not.toMatch(/（可选）.*Claude.*验证|可选.*Claude.*格式/);
+  });
 });
