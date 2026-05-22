@@ -1,0 +1,158 @@
+title: "终章综合测验：十五章知识回顾"
+description: "8 道题 · 大约 7 分钟 · 涵盖全课重点 · 答错也没关系，有解析"
+questions:
+  - id: q1
+    type: single-choice
+    stem: |
+      Ch 5 先教 Homebrew 和 Python 安装，才让你打开真实的 Claude Code。这个顺序的根本原因是什么？
+    options:
+      - id: A
+        text: "Homebrew 是 Anthropic 推荐的安装方式，不用它会违反许可协议"
+        feedback: "不对。Homebrew 只是 macOS 上常用的包管理器，和 Anthropic 的许可协议没有关系。"
+      - id: B
+        text: "Claude Code 在 macOS 上必须通过 Homebrew 安装，否则路径会出错"
+        feedback: "不对。Claude Code 可以通过 npm 安装，不依赖 Homebrew。Homebrew 是为了安装 Python 等其他工具。"
+      - id: C
+        text: "真实的 Claude Code 会调用系统命令行工具（python3、pip3、aa-ocr 等），没有这些工具 Claude 无法执行任何有意义的任务"
+        feedback: "完全正确！沙盒模式（Ch 1-4）里 Claude 在浏览器内跑脚本，什么都不需要安装。真实环境里 Claude 是在调用你系统上的真实程序——它要执行 python3 命令，python3 就必须在你的系统上存在。"
+        correct: true
+      - id: D
+        text: "先安装工具是为了养成好习惯，实际上不安装也能跑 Claude Code"
+        feedback: "不对。在真实环境章节里，Claude 执行的命令（如 python3、pip3）必须真实存在于系统上。不安装就会报「command not found」。"
+
+  - id: q2
+    type: single-choice
+    stem: |
+      CLAUDE.md 文件的核心作用是什么？
+    options:
+      - id: A
+        text: "它是你的 Python 脚本配置文件，控制脚本的运行参数"
+        feedback: "不对。CLAUDE.md 是 Markdown 格式的说明文档，不是 Python 配置。"
+      - id: B
+        text: "它告诉 Claude Code「这个项目是什么、约定是什么、不能做什么」，让 Claude 每次打开这个目录都了解项目背景"
+        feedback: "完全正确！CLAUDE.md 相当于给 Claude 的项目说明书。当你在某个目录启动 Claude 时，它会自动读取 CLAUDE.md，了解这个项目的约定、禁忌和重要信息。"
+        correct: true
+      - id: C
+        text: "它是 Git 的提交信息模板，每次 git commit 都会从这里读取格式要求"
+        feedback: "不对。Git 提交模板通常是 `.gitmessage` 文件。CLAUDE.md 是 Claude Code 专用的项目说明文档。"
+      - id: D
+        text: "它是 Claude Code 的系统提示词，控制 Claude 的回答风格和语气"
+        feedback: "部分正确，但不准确。CLAUDE.md 确实影响 Claude 的行为，但它的主要功能是提供项目上下文（目录结构、约定、禁忌），而不仅仅是调整风格。"
+
+  - id: q3
+    type: single-choice
+    stem: |
+      AI 刚刚帮你修改了五个文件，你发现结果完全不对——代码反而更乱了。第一步应该怎么做？
+    options:
+      - id: A
+        text: "立即用 git checkout . 回滚所有修改"
+        feedback: "危险！Ch 8 明确说明 git checkout . 是被禁止的指令——它语义混乱（可以切换分支，也可以回滚文件），很容易误用。正确做法是用 git restore .。"
+      - id: B
+        text: "手动打开每个被修改的文件，逐行对比，把错误的地方改回来"
+        feedback: "如果你之前没有做 Git 快照，这是没有办法的办法。但如果你在改动前提交了 Git，这样做完全是多此一举，而且容易漏改。"
+      - id: C
+        text: "先用 git status 和 git diff 确认修改范围，如果改动全部是 AI 这次做的，用 git restore . 一键回滚到改动前的状态"
+        feedback: "完全正确！这是 Ch 8 教的标准流程：先看（git status + git diff），再撤（git restore .）。前提是你在 AI 动手之前已经做了 git commit 快照。"
+        correct: true
+      - id: D
+        text: "关掉 Claude Code 窗口，重新开一个会话，让 Claude 重做一遍"
+        feedback: "不对。新会话不会恢复文件到改动前的状态——文件的修改是真实发生在磁盘上的，和 Claude 的会话窗口无关。必须用 Git 来回滚。"
+
+  - id: q4
+    type: single-choice
+    stem: |
+      什么情况下值得把一项任务写成 Skill，而不是直接告诉 Claude 做？
+    options:
+      - id: A
+        text: "只要是需要用 Python 脚本完成的任务，都应该写成 Skill"
+        feedback: "不对。Skill 和「用 Python 实现」无关。Skill 是关于「这件事是否重复」：一次性任务直接说就好，不需要写 Skill。"
+      - id: B
+        text: "任务需要调用超过三个工具，就应该写成 Skill"
+        feedback: "不对。工具数量不是判断标准。判断标准是「这件事你以后还会重复做吗？每次的步骤是一样的吗？」"
+      - id: C
+        text: "这件事你以后每月都要做，步骤固定、格式固定，每次都要向 Claude 解释的信息完全一样"
+        feedback: "完全正确！这正是 Ch 9 给的判断标准：如果你发现自己每次对 Claude 说的话都差不多，就值得写成 Skill，让说明书长期有效。"
+        correct: true
+      - id: D
+        text: "任务比较复杂，自己描述不清楚，让 Skill 帮你补充细节"
+        feedback: "不对。Skill 不是用来「帮你描述清楚」的——你必须把步骤和细节写清楚才能写出好的 Skill。复杂但一次性的任务，直接和 Claude 对话探索反而更合适。"
+
+  - id: q5
+    type: multiple-choice
+    stem: |
+      关于 Skill、Hook、MCP 三种机制，以下哪些描述是正确的？（可多选）
+    options:
+      - id: A
+        text: "Skill 是 Markdown 说明书，描述「遇到这类请求时按这套步骤做」"
+        feedback: "正确。Skill 的本质是 SKILL.md 文件，Claude 读到匹配的请求时会自动参考这份说明书。"
+        correct: true
+      - id: B
+        text: "Hook 是在 Claude 做完某个操作（如 Edit）后自动触发的 shell 命令"
+        feedback: "正确。Hook 配置在 settings.local.json 里，用 PostToolUse / matcher 指定触发条件，每次满足条件就自动跑对应的 shell 命令。"
+        correct: true
+      - id: C
+        text: "MCP 服务器是写在 SKILL.md 里的一段 Python 代码，Claude 在需要时执行它"
+        feedback: "不对。MCP 是一个长期运行的外部进程（不是 Markdown 文件里的代码），Claude 启动会话时连接它，并以「工具」的形式调用它暴露的能力。"
+      - id: D
+        text: "MCP 适合给 Claude 接入原本没有的能力（如直接查数据库、发 Slack 消息）"
+        feedback: "正确。MCP 的典型用途是扩展 Claude 的工具箱——让它能做 Bash 命令和文件编辑之外的事情，比如直接查 SQL、调用 API。"
+        correct: true
+
+  - id: q6
+    type: single-choice
+    stem: |
+      Claude Code 和 Codex CLI 在默认行为上最本质的区别是什么？
+    options:
+      - id: A
+        text: "Claude Code 只能处理财务文件，Codex CLI 才能处理通用代码"
+        feedback: "完全错误。Claude Code 是通用的 AI 编程助手，不限于财务文件。这门课用财务场景只是教学选择。"
+      - id: B
+        text: "Claude Code 默认逐步询问确认、倾向对话式工作；Codex CLI 在 exec 模式下默认自动执行、不等你确认"
+        feedback: "完全正确！这是 Ch 11-12 的核心区分：Claude Code 适合探索性、对话式任务；Codex exec 适合明确的、批量的、可以 Git 快照后放心自动执行的任务。"
+        correct: true
+      - id: C
+        text: "Claude Code 使用 GPT 模型，Codex CLI 使用 Claude 模型"
+        feedback: "不对。Claude Code 使用 Anthropic 的 Claude 模型。Codex CLI 是 OpenAI 的产品，使用 OpenAI 的模型。两者背后的公司和模型都不同。"
+      - id: D
+        text: "Claude Code 需要联网，Codex CLI 可以完全离线运行"
+        feedback: "不对。两者都需要联网调用 AI API。区别不在于联网需求，而在于工作流模式（对话式 vs 批量自动执行）。"
+
+  - id: q7
+    type: multiple-choice
+    stem: |
+      以下哪些是 Cursor 相对于 Claude Code 的独特优势？（可多选）
+    options:
+      - id: A
+        text: "Composer：可以在单次会话里同时修改多个文件，并在 GUI 里审阅差异"
+        feedback: "正确。这是 Cursor 的核心功能之一——多文件编辑配合可视化 diff 审阅，比在终端里逐文件确认更直观。"
+        correct: true
+      - id: B
+        text: "@ 引用：用 @ 符号精准地把某个文件或函数的内容放进对话上下文，省去解释项目结构的步骤"
+        feedback: "正确。@ 引用让你可以直接告诉 AI「看这个文件的这个函数」，而不用每次解释「我有一个叫 xxx 的文件里有个 yyy 函数」。"
+        correct: true
+      - id: C
+        text: "Background Agent：把耗时较长的任务异步提交，自己去做别的事，等 Cursor 完成后通知你"
+        feedback: "正确。Background Agent 是 Cursor 的异步工作流——适合重构、生成测试等不需要你实时介入的任务。"
+        correct: true
+      - id: D
+        text: "Cursor 的 AI 比 Claude Code 更聪明，能解决 Claude Code 无法解决的问题"
+        feedback: "不对。三个工具背后的 AI 能力不是决定性差异，区别在于工作流界面：Cursor 提供 GUI 多文件编辑和异步任务，不是「更聪明」。"
+
+  - id: q8
+    type: single-choice
+    stem: |
+      在 Ch 14 的 invoice-ocr 工具里，aa-ocr 返回退出码 4。正确的处理方式是什么？
+    options:
+      - id: A
+        text: "退出码 4 是致命错误，应该终止整个批处理并报错退出"
+        feedback: "不对。退出码 4 的含义是「部分字段提取成功」——有些字段识别出来了，只是有几个是 null。这不是致命错误，而是需要人工补全的情况。终止批处理会让其他正常的发票也无法处理。"
+      - id: B
+        text: "退出码 4 说明文件损坏，应该从 inputs/ 删除该文件并继续处理下一张"
+        feedback: "不对。退出码 4 不代表文件损坏，而是 OCR 识别出了部分字段但有些是 null（比如手写税号识别不完整）。应该把它放进「需手填」sheet，让人工来补全，而不是删除文件。"
+      - id: C
+        text: "把该发票写入「需手填」sheet，标注哪些字段是 null，让人工后续补全；批处理继续运行其他文件"
+        feedback: "完全正确！这是 Ch 14 降级流设计的精髓：退出码 4 → 「需手填」sheet，标注缺失字段，让整个批次继续运行。设计良好的降级流不会因为一张发票的部分识别失败就停下来。"
+        correct: true
+      - id: D
+        text: "把退出码 4 和退出码 0 一样处理，忽略 null 字段，直接写入主表"
+        feedback: "不对。把 null 字段直接写入主表会导致主表里有缺失数据，月末对账时可能引起错误。正确做法是分离处理：完整识别的进主表，部分识别的进「需手填」sheet。"
