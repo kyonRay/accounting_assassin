@@ -49,15 +49,15 @@ questions:
         feedback: "正确。这是 Background Agent 与 Claude Code / Codex CLI 最本质的差别：工作节奏是异步的，而不是你在终端里等它跑完。"
         correct: true
       - id: B
-        text: "它比 Claude Code 聪明，能解决 Claude 解决不了的问题"
-        feedback: "不对。Background Agent 和 Claude Code 背后的 AI 能力差不多，区别在于工作流模式（异步 vs 同步），不是智能程度。"
+        text: "它是 macOS 里的本地后台进程，类似 launchd 启动的服务"
+        feedback: "不对——这是本章特别澄清的误解。Background Agent **不在你本机**：它跑在 Cursor 公司云端的 Docker 容器里（AWS VM），要求把代码挂到 GitHub，由 Cursor 在云端 fork 临时分支执行。关掉 Cursor.app 它也在跑——因为根本不在你电脑上。"
       - id: C
-        text: "它适合处理耗时较长、不需要你实时介入的任务"
-        feedback: "正确。重构一批文件、生成测试用例、整理文档结构这类任务，放给 Background Agent 跑，自己去做别的，是典型的使用场景。"
+        text: "它需要把代码仓库挂到 GitHub，由 Cursor 在云端 fork 临时分支执行任务"
+        feedback: "正确。Background Agent 从 GitHub clone 你的仓库到云端 Docker 容器，在一个临时分支上执行，跑完后把改动 push 回去（通常以 PR 形式）。这意味着你的代码会被发送到 Cursor 控制的云环境——对会计真实数据来说不合适。"
         correct: true
       - id: D
-        text: "通常需要 Cursor Pro 订阅才能使用"
-        feedback: "正确。Background Agent 是 Cursor 的付费功能，免费账号通常无法使用或有严格限制。"
+        text: "它从 Cursor Pro 档位（$20/月）开始包含，免费 Hobby 档位不包含"
+        feedback: "正确。截至 2026-05，Background Agent 是 Cursor Pro 及以上档位（Pro $20 / Pro+ $60 / Ultra $200）的功能。免费 Hobby 账号不包含。来源：cursor.com/pricing。"
         correct: true
 
   - id: q4

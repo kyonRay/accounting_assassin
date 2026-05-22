@@ -1,9 +1,14 @@
 # 第 13 章 · Cursor 工作流：第三种 vibe-coding 方式
 
 <Callout type="warn" title="没有 Cursor 订阅？先看这里">
-Cursor Pro 订阅约 $20/月（截至 2026-05 价格）。如果你目前还没有订阅，完全没问题——**本章的概念部分同样有价值**，你可以通读了解三种工具的差异，等以后有了 Cursor 账号再回来跑手操部分。
+Cursor 个人档位（2026-05 核对自 [cursor.com/pricing](https://cursor.com/pricing)）：**Hobby 免费 / Pro $20/月 / Pro+ $60/月 / Ultra $200/月**。
 
-遇到这种情况时，跳过「安装」「登录」和三个体验步骤，直接读到最后的「三工具对比」部分。概念学到了，工具可以之后再补。
+如果你打算试 Cursor：
+- **Hobby（免费）**：可以体验 Composer 和 @ 引用，受请求次数限制。
+- **Pro（$20/月起）**：上述功能 + Background Agent（云端代理）。
+
+如果你目前完全没账号也没问题——**本章的概念部分同样有价值**，你可以通读了解三种工具的差异。  
+遇到不能跑实操的步骤，可以跳过手操部分、直接读到最后的「三工具对比」。概念学到了，工具可以之后再补。
 </Callout>
 
 ---
@@ -70,7 +75,22 @@ Cursor Pro 订阅约 $20/月（截至 2026-05 价格）。如果你目前还没�
   在命令面板里搜索 "shell command" 或 "install cursor"，不同版本的 Cursor 菜单文字可能略有差异。或者在菜单栏找 **Cursor → Install 'cursor' command**。
   </Callout>
 
-  看到版本号之后，点「我跑完了」。
+  <Callout type="warn" title="必做：第一次启动 Cursor 后，先开 Privacy Mode（再做任何任务）">
+  **路径：Settings → General → Privacy Mode → Enabled。**
+
+  **为什么必须开**：Cursor 个人账号（Hobby / Pro）默认 **不开** Privacy Mode——这意味着你和 AI 的对话内容、代码片段、提示词，**默认会被上传到 Cursor 服务器**，可能用于改进他们的模型。
+  （Team / Enterprise 账号才默认开启 Privacy Mode；个人账号需要自己手动打开。来源：[cursor.com/data-use](https://cursor.com/data-use)，2026-05 核对）
+
+  对一个 **10 年财务的会计** 来说，这是不能接受的：`~/accounting-learner/` 里会有客户姓名、银行卡号、税号、金额。这些数据 **不应该** 进任何 AI 公司的训练管道。
+
+  开启 Privacy Mode 后：
+  - 你的代码不会被 Cursor 用于训练模型
+  - Cursor 与各个模型供应商（Anthropic、OpenAI 等）也维持零数据保留协议
+
+  **在做下一步登录 / 第 4 节的第一次 Composer 任务之前，先把这一步做了。** 验证方式：Settings → General → Privacy Mode 显示已勾选 / Enabled。
+  </Callout>
+
+  看到版本号、并已开启 Privacy Mode 之后，点「我跑完了」。
 </RealStep>
 
 ---
@@ -83,10 +103,14 @@ Cursor Pro 订阅约 $20/月（截至 2026-05 价格）。如果你目前还没�
 >
   Cursor 通过 cursor.com 账号验证身份。
 
-  <Callout type="warn" title="需要 Cursor Pro 订阅（或免费额度）">
-  Cursor 有免费额度（有限的 AI 请求次数），Pro 约 $20/月。以下三个工作流中，Background Agent 通常需要 Pro 订阅。
+  <Callout type="warn" title="个人订阅档位（2026-05 核对自 cursor.com/pricing）">
+  Cursor 个人档位：**Hobby（免费，有有限的 AI 请求次数）** / **Pro $20/月** / **Pro+ $60/月** / **Ultra $200/月**。
 
-  如果你目前只有免费账号，Composer 和 @ 引用可以在免费额度内体验；Background Agent 部分可以先读内容，有 Pro 后再跑实操。
+  以下三个工作流：
+  - **Composer** 和 **@ 引用**：免费 Hobby 档位也能体验（在请求额度内）。
+  - **Background Agent**（云端代理）：**Hobby 不包含**，从 Pro（$20/月）档位开始才有。
+
+  如果你目前只有免费 Hobby 账号，Composer 和 @ 引用可以照做；Background Agent 部分先读内容，等以后升级 Pro 再实操。
   </Callout>
 
   **登录步骤**（通常在首次打开 Cursor.app 时自动触发）：
@@ -197,49 +221,73 @@ Cursor Pro 订阅约 $20/月（截至 2026-05 价格）。如果你目前还没�
 
 ---
 
-## 6. Cursor 超能力三：Background Agent——异步工作，去喝茶
+## 6. Cursor 超能力三：Background Agent——异步任务，但跑在云端
 
 **Background Agent 是 Cursor 与 Claude Code / Codex 最本质的差异**：
 
 - Claude Code 和 Codex CLI 是**同步的**——你在终端里等它跑完，期间做不了别的
-- Cursor Background Agent 是**异步的**——你把任务交给它，它在后台跑，你可以去做别的事，它做完了通知你
+- Cursor Background Agent 是**异步的**——你把任务交给它，它独立跑完后通知你，你可以同时做别的
 
-这对于耗时较长的任务（比如重构一批文件、生成测试用例、整理文档结构）非常有价值。
+但是——这里有一个**很多人会误解的关键点**：
+
+<Callout type="warn" title="Background Agent 不是「本地后台进程」——它跑在 Cursor 的云端服务器上">
+"Background" 这个词容易让人以为它是 macOS 里那种"后台运行"的 App。**不是。**
+
+Background Agent 的真实运作方式（来源：[Cursor Cloud Agent 文档](https://cursor.com/docs/cloud-agent) + 第三方分析，2026-05 核对）：
+
+1. **它跑在 Cursor 公司的云端服务器**（Docker 容器 + AWS VM），**不是你的电脑**。
+2. **要求把你的代码仓库挂到 GitHub**——Background Agent 从 GitHub clone 你的仓库到云端容器里执行。
+3. **Cursor 在云端 fork 出一个临时分支**（ephemeral checkout）跑任务，跑完后把改动 push 回你的 GitHub 仓库（通常以 PR 形式）。
+4. **你关掉 Cursor.app 它还在跑**——因为它根本不在你本机。
+5. **代码 + 上下文 + 模型调用全部发生在 Cursor 控制的环境里。**
+
+**对会计场景来说，意味着什么？**
+
+`~/accounting-learner/` 里有客户姓名、银行卡号、税号、金额——这些数据 **不应该** 被 push 到 GitHub，更不应该被任何第三方云容器读取。
+
+**所以：本章 §6 只让你认识 Background Agent 是什么、能做什么——不建议你把会计真实数据交给它跑。** 对于敏感数据，本地 Composer + Privacy Mode 已经够用。
+
+如果你以后用 Background Agent 处理 **不含真实客户数据的代码**（例如开源工具、个人脚本），它确实能帮你省时间。但别忘了它的真实模型：**云端代理 + GitHub 仓库 + 临时分支**。
+</Callout>
 
 <RealStep
   id="background-agent-tried"
 >
-  **启动 Background Agent：**
+  **认识 Background Agent 的入口：**
 
   在 Cursor 里，通过 `Cmd+Shift+P` 搜索 **"Background Agent"**，或在侧边栏找到对应入口（不同版本界面可能略有差异）。
 
-  给 Background Agent 一个需要一定时间的任务：
+  **方案 A（推荐做法 —— 只看入口，不提交真实数据任务）：**
+
+  打开 Background Agent 面板，**只观察它要求你做什么**：通常会要求连接 GitHub、选择仓库、配置 Dockerfile / 环境，等等。看到这些就够了——它在向你坦白"我需要把你的代码上传到云端"。
+
+  **方案 B（仅适用于 Pro 账号 + 非敏感仓库）：**
+
+  如果你确实想跑一次，准备一个 **不含真实会计数据** 的小测试仓库（例如自己新建一个 GitHub 仓库，只放几个 `print("hello")` 的 Python 文件），让 Background Agent 给它生成测试文件：
 
   ```
-  帮我在 ~/accounting-learner/scripts/ 目录下，
-  为每个 Python 文件生成一个对应的 _test.py 测试文件，
+  为这个仓库里每个 Python 文件生成一个对应的 _test.py 测试文件，
   每个测试文件包含至少两个简单的断言测试
   ```
 
-  提交任务后，**你不需要盯着它**。Background Agent 会在后台执行；你可以：
+  **不要** 把 `~/accounting-learner/` 直接挂到 Background Agent。
 
-  - 切换到其他 App 继续工作
-  - 5-10 分钟后回来查看进度和结果
-  - 在 Cursor 侧边栏的 Background Agent 列表里查看状态
+  <Callout type="insight" title="异步代理 vs 本地工具——不是更聪明，是更远">
+  Background Agent 和 Claude Code / Codex 的区别不是智能程度——而是：
+  - **工作节奏**：异步 vs 同步
+  - **数据物理位置**：云端 vs 本机
+  - **触达范围**：GitHub 仓库 vs 本机文件夹
 
-  <Callout type="insight" title="异步任务，可以放手让它跑">
-  把 Background Agent 想象成「把任务甩给一个认真的实习生，然后去喝杯茶，回来看结果」。
-
-  它和 Claude Code / Codex 的区别不是聪明程度——而是**工作节奏**：  
-  同步工具适合你要盯着、随时介入的任务；  
-  Background Agent 适合你可以放手、等结果的任务。
+  对会计场景：**本机数据 → 本地 Composer 更稳**。云端代理留给开源代码 / 公开数据这类不敏感的任务。
   </Callout>
 
-  <Callout type="warn" title="Background Agent 需要 Cursor Pro">
-  如果你的账号没有 Pro 订阅，Background Agent 可能不可用。此时直接点「我跑完了」——本步骤的概念你已经通过阅读掌握了，工具可以以后再用。
+  <Callout type="warn" title="档位说明（2026-05 核对自 cursor.com/pricing）">
+  Background Agent **从 Cursor Pro（$20/月）档位开始包含**，免费 Hobby 不包含。
+
+  如果你目前只有 Hobby 免费账号，Background Agent 入口可能不可用 / 受限。此时直接点「我跑完了」——本步骤的概念你已经通过阅读掌握了。
   </Callout>
 
-  提交任务后（或阅读完概念），点「我跑完了」。
+  观察了 Background Agent 的入口、并理解了"云端代理"的真实模型之后，点「我跑完了」。
 </RealStep>
 
 ---
@@ -263,9 +311,11 @@ Cursor Pro 订阅约 $20/月（截至 2026-05 价格）。如果你目前还没�
   | **工作节奏** | 同步，喜欢先确认 | 同步，直接动手 | 同步 or 异步（Background Agent） |
   | **多文件处理** | 可以，但逐个确认 | 可以，批量自动 | Composer：图形化多文件审阅 |
   | **上下文引用** | 手动粘贴或 SKILL.md | 手动描述 | @ 引用，精准一键 |
-  | **异步任务** | 不支持 | 不支持 | Background Agent（放手等结果）|
-  | **适合场景** | 探索性对话、边想边做 | 明确的批量文件操作 | 多文件项目编辑、异步长任务 |
-  | **订阅要求** | Anthropic（Max 等） | OpenAI（ChatGPT Plus+） | Cursor Pro（$20/月） |
+  | **异步任务** | 不支持 | 不支持 | Background Agent（**云端代理**，需 Pro） |
+  | **数据位置** | 本机 | 本机 | Composer 本机；Background Agent **在 Cursor 云端 + GitHub** |
+  | **适合场景** | 探索性对话、边想边做 | 明确的批量文件操作 | 多文件项目编辑（本地）；异步任务（非敏感数据） |
+  | **隐私要点** | 视 Anthropic 账号策略 | 视 OpenAI 账号策略 | **个人档需手动开 Privacy Mode**；Background Agent 走云端 |
+  | **订阅要求** | Anthropic 账号（Claude Pro / Max 等） | 包含在 ChatGPT 免费 / Plus / Pro 等各档位（详见 [openai.com/chatgpt/pricing](https://openai.com/chatgpt/pricing)） | Cursor Hobby（免费）/ Pro $20/月 / Pro+ $60/月 / Ultra $200/月（Background Agent 需 Pro 起） |
 
   ---
 
