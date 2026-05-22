@@ -323,7 +323,7 @@ export function Settings() {
       aria-modal="true"
       aria-label="设置"
       data-testid="settings-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
     >
       <div className="bg-white rounded-2xl border border-graphite/10 shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
         {/* Header */}
