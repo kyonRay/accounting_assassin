@@ -17,8 +17,9 @@ vi.mock("@/modules/RealEnvBridge", async (importOriginal) => {
 
 import * as RealEnvBridge from "@/modules/RealEnvBridge";
 import { StuckButton, formatDiagnosticMarkdown } from "@/components/StuckButton";
+import { STUCK_EVENT } from "@/components/ErrorBoundary";
 import type { DiagnosticReport } from "@/modules/RealEnvBridge";
-import { useProgress } from "@/modules/Progress";
+import { useProgress, useCrashStore } from "@/modules/Progress";
 
 const mockCollectDiagnostics = vi.mocked(RealEnvBridge.collectDiagnostics);
 
@@ -63,6 +64,7 @@ beforeEach(() => {
   revokeObjectURL.mockClear();
   createObjectURL.mockClear();
   useProgress.getState().resetProgress();
+  useCrashStore.getState().clearCrash();
   localStorage.clear();
 });
 
@@ -322,5 +324,82 @@ describe("formatDiagnosticMarkdown — allowlist", () => {
     expect(md).toContain("发给老公");
     expect(md).toContain("记账杀手");
     expect(md).toContain("卡住了");
+  });
+
+  it("does NOT include a crash section when lastCrash is null", () => {
+    const md = formatDiagnosticMarkdown({
+      report: FIXTURE,
+      chapterSlug: "01-ai-tools-vs-chatgpt",
+      mode: "sandbox",
+      sandboxFiles: [],
+      lastCrash: null,
+    });
+    expect(md).not.toContain("最近一次崩溃");
+  });
+
+  it("includes the crash section when lastCrash is set", () => {
+    const md = formatDiagnosticMarkdown({
+      report: FIXTURE,
+      chapterSlug: "01-ai-tools-vs-chatgpt",
+      mode: "sandbox",
+      sandboxFiles: [],
+      lastCrash: {
+        name: "TypeError",
+        message: "Cannot read property foo of undefined",
+        stack:
+          "TypeError: Cannot read property foo of undefined\n    at Bomb (~/workspace/app/Bomb.tsx:1:1)",
+        timestampUtc: "2026-05-21T11:00:00Z",
+      },
+    });
+
+    expect(md).toContain("## 最近一次崩溃");
+    expect(md).toContain("TypeError");
+    expect(md).toContain("Cannot read property foo of undefined");
+    expect(md).toContain("2026-05-21T11:00:00Z");
+    expect(md).toContain("~/workspace/app/Bomb.tsx");
+    // Must NOT leak a /Users/<name>/ path through the formatter.
+    expect(md).not.toMatch(/\/Users\//);
+  });
+});
+
+// ─── Test 8: crash store integration — auto-open + crash section ─────────────
+
+describe("StuckButton — crash store integration", () => {
+  it("modal markdown includes 最近一次崩溃 when crash store has a crash", async () => {
+    mockCollectDiagnostics.mockResolvedValueOnce(FIXTURE);
+    useCrashStore.getState().recordCrash(
+      Object.assign(new Error("synthetic crash"), { name: "BoomError" }),
+    );
+
+    render(<StuckButton />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("stuck-button"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("stuck-markdown-preview")).toBeInTheDocument();
+    });
+
+    const preview = screen.getByTestId("stuck-markdown-preview");
+    expect(preview.textContent).toContain("最近一次崩溃");
+    expect(preview.textContent).toContain("BoomError");
+    expect(preview.textContent).toContain("synthetic crash");
+  });
+
+  it("opens the modal in response to the aa:open-stuck CustomEvent", async () => {
+    mockCollectDiagnostics.mockResolvedValueOnce(FIXTURE);
+
+    render(<StuckButton />);
+    expect(screen.queryByTestId("stuck-modal")).not.toBeInTheDocument();
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(STUCK_EVENT));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("stuck-modal")).toBeInTheDocument();
+    });
+    expect(mockCollectDiagnostics).toHaveBeenCalledTimes(1);
   });
 });

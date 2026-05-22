@@ -14,14 +14,16 @@
  * - No `path` field on ToolReport (would leak the real user home dir name).
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { useProgress } from "@/modules/Progress";
+import { useProgress, useCrashStore } from "@/modules/Progress";
+import type { CrashRecord } from "@/modules/Progress";
 import { collectDiagnostics } from "@/modules/RealEnvBridge";
 import type { DiagnosticReport } from "@/modules/RealEnvBridge";
 import { useOptionalChapterRunner } from "@/modules/ChapterRunner";
 import { CHAPTERS } from "@/curriculum";
 import type { AppMode } from "@/modules/Progress/store";
+import { STUCK_EVENT } from "@/components/ErrorBoundary";
 
 // ─── Markdown formatter ───────────────────────────────────────────────────────
 
@@ -30,6 +32,8 @@ export interface FormatArgs {
   chapterSlug: string | null;
   mode: AppMode;
   sandboxFiles: string[];
+  /** Most recent in-memory crash, if any. Appended as a final section. */
+  lastCrash?: CrashRecord | null;
 }
 
 /**
@@ -45,6 +49,7 @@ export function formatDiagnosticMarkdown({
   chapterSlug,
   mode,
   sandboxFiles,
+  lastCrash = null,
 }: FormatArgs): string {
   const chapterMeta = chapterSlug ? CHAPTERS.find((c) => c.slug === chapterSlug) : null;
   const chapterLabel = chapterMeta
@@ -87,6 +92,21 @@ export function formatDiagnosticMarkdown({
     sandboxSection = `\n## 沙箱虚拟文件系统\n文件:\n${fileList}\n`;
   }
 
+  // Crash section (optional — only shown when a crash was recorded since
+  // App start). Per spec § 8.5 the stack is already sanitized at record
+  // time inside the crash store, so we can render it verbatim here.
+  let crashSection = "";
+  if (lastCrash) {
+    const stackBlock = lastCrash.stack
+      ? `\n\`\`\`\n${lastCrash.stack}\n\`\`\`\n`
+      : "";
+    crashSection = `\n## 最近一次崩溃
+- 时间: ${lastCrash.timestampUtc}
+- 错误类型: ${lastCrash.name}
+- 错误信息: ${lastCrash.message}
+${stackBlock}`;
+  }
+
   return `# 📋 学习诊断报告
 
 **生成时间**: ${report.timestampUtc}
@@ -104,7 +124,7 @@ ${toolRows}
 
 ## 工作区 (~/accounting-learner/)
 ${workspaceSection}
-${sandboxSection}
+${sandboxSection}${crashSection}
 ---
 
 下面是要发给老公的消息模板:
@@ -150,11 +170,16 @@ export function StuckButton({ placement: _placement = "bottom-right" }: StuckBut
         sandboxFiles = await runner.fs.list();
       }
 
+      // Read the most recent in-memory crash (if any) so the report can
+      // tell the user's helper what went wrong, automatically.
+      const lastCrash = useCrashStore.getState().lastCrash;
+
       const markdown = formatDiagnosticMarkdown({
         report,
         chapterSlug: currentChapter,
         mode,
         sandboxFiles,
+        lastCrash,
       });
       setModal({ stage: "ready", markdown });
     } catch (e) {
@@ -164,6 +189,21 @@ export function StuckButton({ placement: _placement = "bottom-right" }: StuckBut
       });
     }
   }
+
+  // Listen for the global "open stuck" event so the ErrorBoundary's
+  // fallback (and anything else needing an escape hatch) can summon us
+  // without holding a direct reference.
+  useEffect(() => {
+    const onOpen = () => {
+      // Avoid re-triggering if already open.
+      if (modal.stage === "idle") {
+        void handleOpen();
+      }
+    };
+    window.addEventListener(STUCK_EVENT, onOpen);
+    return () => window.removeEventListener(STUCK_EVENT, onOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modal.stage]);
 
   function handleClose() {
     setModal({ stage: "idle" });
