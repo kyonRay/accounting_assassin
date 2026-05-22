@@ -164,15 +164,32 @@ UnicodeDecodeError: 'utf-8' codec can't decode byte 0xb7
 
 ## 5. Git 作为安全网
 
+<Callout type="tip" title="前提：初始化 Git 仓库（只需做一次）">
+在用 Git 快照之前，需要先让 `~/accounting-learner/` 成为一个 Git 仓库，并告诉 Git 你是谁。**这只需要做一次，以后不用重复。**
+
+```bash
+cd ~/accounting-learner && git init
+git config user.email "你的邮件地址@example.com"
+git config user.name "你的名字"
+```
+
+- `git init` 是幂等的——如果已经初始化过，再跑一次也没有副作用。
+- 这里用本地配置（不加 `--global`），只影响这个项目目录。
+- 邮件和名字填真实的或随便填都行，它只是出现在提交记录里。
+</Callout>
+
 ### 事前快照：改之前先存档
 
 **每次把 bug 交给 AI 去修之前，先执行一次快照：**
 
 ```bash
-git commit -am "before retry"
+git add -A && git commit -m "before retry"
 ```
 
 这一步只需要 3 秒，但它让你可以随时回退。如果 AI 修复方案让脚本变得更糟，你不会丢失任何东西。
+
+> **为什么用 `git add -A` 而不是 `git commit -am`？**
+> `git commit -am` 只会打包**已经被 Git 追踪的文件**的修改。如果 AI 刚刚帮你创建了一个全新的脚本（比如 `read_expenses.py`），这个新文件还没被追踪——`-am` 会漏掉它，快照就不完整。`git add -A` 先把所有新文件和修改都加入暂存区，再提交，确保快照是完整的。
 
 ### 事后检查：AI 改完后先看再用
 
@@ -205,7 +222,7 @@ git clean -i
 
 如果 AI 的修改有些对、有些不对，跟它说：「你改的第 12 行我觉得不对，其他改动保留，第 12 行帮我重新考虑一下」
 
-每一轮尝试都做一次 `git commit -am "retry N"`，最多重试 3 次。
+每一轮尝试都做一次 `git add -A && git commit -m "retry N"`，最多重试 3 次。
 
 **情况三：完全卡住**
 
@@ -497,10 +514,10 @@ git restore .
 **第六步：从干净版本重新开始，一次只加一个功能**
 
 ```bash
-git commit -am "clean base before adding features"
+git add -A && git commit -m "clean base before adding features"
 ```
 
-然后一次只加一个功能，每次加完都 `git commit`，这样就有了多个安全的回退点。
+然后一次只加一个功能，每次加完都 `git add -A && git commit -m "描述这次加了什么"`，这样就有了多个安全的回退点。
 
 <Callout type="insight" title="正确的 AI 编程节奏">
 不要一次让 AI 改太多——「帮我把脚本加上 A、B、C、D 四个功能」往往比四次「帮我加 A」→「帮我加 B」→... 出更多 bug，也更难调试。
@@ -525,7 +542,7 @@ git commit -am "clean base before adding features"
 |---|---|
 | Traceback 最后一行 | 任何 Python 报错，从这里读起 |
 | 四段式 Bug 报告模板 | 准备把 bug 交给 AI 处理时 |
-| `git commit -am "before retry"` | 每次让 AI 改代码之前 |
+| `git add -A && git commit -m "before retry"` | 每次让 AI 改代码之前（包含新文件） |
 | `git status` / `git diff` | AI 改完后，先检查改了哪些 |
 | `git restore .` | AI 改坏了，全部撤销，重来 |
 | 对数验证 | 脚本跑通后，独立验证输出数字 |
