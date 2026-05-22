@@ -121,19 +121,50 @@ aa-ocr 处理每张发票
 <Callout type="insight" title="AI 校验：别省掉这一步">
 手填完「需手填」sheet 之后，还有第二步：让 Claude 做一次**跨字段合理性检查**。这不是可选项——它是降级流的收尾，防止人工填写时引入新的错误。
 
+**重要说明**：Claude Code 本身无法直接读取 `.xlsx` 文件——如果你直接把 Excel 文件扔给它，它会基于猜测给出看似合理的回复，但实际上没有看到任何真实数据。这一步需要分两次交互，才能真正有效。
+
+**第一步：让 Claude 写一个脚本，把「需手填」sheet 的数据打印出来**
+
 打开 Claude Code：
 
 ```bash
-claude
+cd ~/accounting-learner && claude
 ```
 
 然后说：
 
 ```
-我在 invoice_summary_2026-04.xlsx 的「需手填」sheet 里补完了第 3-7 行
-的金额、税号、商家。帮我做一次校验：
+帮我写一个 Python 脚本，读取
+~/accounting-learner/capstone-a/invoice-ocr/outputs/invoice_summary_2026-04.xlsx
+里的「需手填」sheet，把每一行的所有字段打印出来，格式清晰易读。
+```
+
+Claude 会生成脚本。运行它：
+
+```bash
+python3 /tmp/print_sheet.py
+```
+
+你会在终端看到类似这样的输出：
+
+```
+行 2: 日期=2026-04-03  商家=某某超市  金额=（空）  税号=91110xxxxxxx
+行 3: 日期=2026-04-07  商家=（空）    金额=328.00  税号=（空）
+...
+```
+
+**第二步：把打印出来的文字粘贴给 Claude，做跨字段合理性检查**
+
+把终端输出的文字全部选中、复制，然后对 Claude 说：
+
+```
+下面是我在「需手填」sheet 里手填完成后的记录（从终端打印出来的）：
+
+[粘贴刚才的终端输出]
+
+帮我做一次校验：
 - 每条记录的日期、商家、税号是不是配得上（同一家商户的税号应一致）
-- 金额是不是合理范围（对照同月同类目其它发票）
+- 金额是不是合理范围（对照同月同类目其它记录）
 - 有没有明显的录入失误（比如多/少一位小数）
 
 把可疑的行单独列出来，告诉我可疑在哪里。
@@ -221,6 +252,40 @@ AI 工具识别率达到 90% 已经是很好的结果了。剩下的 10% 怎么�
 
   「需手填」sheet 里的空白字段，就是你下一步要手动补全的地方——这就是降级流在实际工作中的样子。
 
+  <Callout type="warn" title="aa-ocr 找不到？先做这几步">
+  如果脚本抛出 `FileNotFoundError: 'aa-ocr'` 或者 `exit code 127`，说明 `aa-ocr` 不在当前终端的 PATH 里。这在换了终端窗口或升级了 macOS 后偶尔发生。
+
+  **第一步：确认 aa-ocr 是否存在**
+
+  ```bash
+  which aa-ocr
+  ```
+
+  如果打印出一个路径（比如 `~/.bin/aa-ocr`），说明工具存在，只是这个终端会话没加载到——关掉终端，重新打开一个新的窗口，再试一次。
+
+  **第二步：如果 `which aa-ocr` 什么都不打印**
+
+  先确认 App 里的二进制文件还在：
+
+  ```bash
+  ls /Applications/AccountingAssassin.app/Contents/MacOS/aa-ocr
+  ```
+
+  如果文件存在，手动补 symlink：
+
+  ```bash
+  ln -sf /Applications/AccountingAssassin.app/Contents/MacOS/aa-ocr ~/accounting-learner/.bin/aa-ocr
+  ```
+
+  然后确认 `~/accounting-learner/.bin` 在你的 PATH 里（`.zshrc` 或 `.bash_profile` 里应该有一行 `export PATH="$HOME/accounting-learner/.bin:$PATH"`）。
+
+  **第三步：如果以上都不管用**
+
+  回到 Ch 5 的「切换到真实环境」步骤，让 App 重新建立 symlink。
+
+  如果还是卡住，点页面底部的「我卡住了」按钮，App 会收集诊断信息帮你定位问题。
+  </Callout>
+
   <Callout type="tip" title="暂时没有发票？">
   如果 inputs/ 目录是空的，脚本应该打印「处理 0 张文件」并正常退出。这也是成功的输出——说明脚本结构正确。
 
@@ -254,6 +319,23 @@ AI 工具识别率达到 90% 已经是很好的结果了。剩下的 10% 怎么�
 在实际工作中，简单的关键词匹配通常能覆盖 80-90% 的日常消费类别。剩下的 10-20% 归入「其它」，由你定期手动核查。
 
 先把 80% 的自动化做好，比做一个「完美但用不起来的 ML 分类器」更有价值。
+</Callout>
+
+<Callout type="tip" title="中国银行流水默认不是 CSV——先把文件转换好">
+工商银行、招商银行、建设银行等主流银行的网银导出，默认格式是 **PDF** 或 **XLS/XLSX**，很少直接提供 CSV。在把文件放入 `inputs/` 之前，需要先转换格式。
+
+**最快的路径（适用于大多数银行）**：用 Excel 打开 XLS 文件，点「文件」→「另存为」→ 格式选 **CSV UTF-8（逗号分隔）**，保存即可。
+
+**如果银行只给 PDF**：可以让 Claude 帮你写一个一次性转换脚本：
+
+```
+我的银行流水是 PDF，帮我写一个 Python 脚本用 pdfplumber 把它的表格提取出来，
+保存成 CSV，列名尽量保留原始名称。
+```
+
+**部分银行支持直接导出 CSV**：登录网银后在「下载」或「高级导出」选项里找一找，有的银行（如平安银行企业版）提供 CSV 选项。
+
+格式转换好之后，再继续下面的步骤。
 </Callout>
 
 ### 动手：让 Claude 搭建 bank-classifier 项目
