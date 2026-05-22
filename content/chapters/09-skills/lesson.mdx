@@ -87,29 +87,31 @@ Claude Code 会自动扫描 `~/.claude/skills/` 目录下所有子目录里的 `
 
   ---
   name: organize-invoices
-  description: 整理本月的发票PDF/图片 — OCR提取 + 按类目汇总到 Excel。适合每月初做月报前用。
+  description: 整理本月的发票PDF/图片 — OCR提取 + 按商家汇总到 Excel。适合每月初做月报前用。
   ---
 
   # organize-invoices
 
   ## 何时使用
 
-  当用户说要"整理本月发票"、"做发票汇总"、"按类目分发票"时，使用这个 skill。
+  当用户说要"整理本月发票"、"做发票汇总"、"按商家汇总发票"时，使用这个 skill。
 
   ## 步骤
 
-  1. 看 ~/accounting-learner/invoices/ 目录里所有 PDF/PNG/JPG 文件
-  2. 对每个文件用 aa-ocr <file> 命令做 OCR，得到 JSON
-  3. 解析 JSON 中的 date / vendor / amount / tax_id 字段
-  4. 按 vendor 类目分组求和
-  5. 输出到 ~/accounting-learner/outputs/invoice_summary_<YYYY-MM>.xlsx
-  6. 任何 OCR 失败（exit 3）或部分字段（exit 4）的发票，单独列在"需手填"sheet 里
+  1. 先在终端打印一行启动标记，证明 Skill 已被加载：
+     `echo "🔹 organize-invoices v1 启动 — 时间 $(date '+%H:%M:%S')"`
+  2. 看 ~/accounting-learner/invoices/ 目录里所有 PDF/PNG/JPG 文件
+  3. 对每个文件用 aa-ocr <file> 命令做 OCR，得到 JSON
+  4. 解析 JSON 中的 date / vendor / amount / tax_id 字段
+  5. 按 vendor（商家）分组求和
+  6. 输出到 ~/accounting-learner/outputs/invoice_summary_organize-invoices-v1_<YYYY-MM>.xlsx
+  7. 任何 OCR 失败（exit 3）或部分字段（exit 4）的发票，单独列在"需手填"sheet 里
 
   ## 注意
 
   - 不要修改原始发票文件
-  - 输出文件用月份做后缀，方便归档
-  - 中文表头：日期 / 商家 / 金额 / 税号 / 类目
+  - 输出文件名包含 `organize-invoices-v1` 版本标记，便于以后审计是哪个版本的 Skill 生成的
+  - 中文表头：日期 / 商家 / 金额 / 税号（4 列，不要凭空生成"类目"——会计科目需要人工判断，Skill 不要乱猜）
   ```
 
   确认文件创建完成后，输入 `/exit` 退出，然后点「我跑完了」。
@@ -149,16 +151,20 @@ Claude Code 会自动扫描 `~/.claude/skills/` 目录下所有子目录里的 `
 
   注意：**不要**说「用 organize-invoices skill 帮我整理」——那样就失去了 Skill 的意义。应该用自然语言描述任务，让 Claude 自己识别。
 
-  正常情况下，Claude 会回应类似：
+  正常情况下，Claude 会先执行步骤 1 的启动标记命令，你能在终端看到一行：
 
   ```
-  好的，我用 organize-invoices skill 帮你整理本月发票。
-  先看一下 ~/accounting-learner/invoices/ 目录里有哪些文件……
+  🔹 organize-invoices v1 启动 — 时间 14:23:07
   ```
 
   然后它会开始运行 `aa-ocr` 并处理文件。
 
-  确认 Claude 识别到了 Skill（回应里提到了 organize-invoices 或 Skill 相关内容），然后点「我跑完了」。
+  **客观验证标准**（两项都要满足，缺一不可）：
+
+  1. **终端能看到** `🔹 organize-invoices v1 启动` 字样——证明 Skill 步骤 1 真的跑了，不是 Claude 嘴上随便说说。
+  2. **生成的输出文件名包含** `organize-invoices-v1`（例如 `invoice_summary_organize-invoices-v1_2026-05.xlsx`）——这是 Skill 留下的"作案痕迹"，文件存档后还能查到是哪个版本生成的。
+
+  两个都看到了再点「我跑完了」。如果 Claude 只是嘴上说"我用了 organize-invoices skill"但终端没有 🔹 那行启动标记，说明 Skill 其实没被加载，要回去检查 SKILL.md 文件路径是否正确。
 </RealStep>
 
 <Callout type="warn" title="如果 Claude 没有自动调用 Skill">
@@ -183,10 +189,11 @@ Skills 的触发不是魔法——Claude 在读 `description` 时做语义匹配
 
   **检查输出**：
 
-  1. `~/accounting-learner/outputs/` 目录里出现了 `invoice_summary_<当月>.xlsx` 文件
-  2. Excel 文件里有正确的中文表头：日期 / 商家 / 金额 / 税号 / 类目
-  3. 如果有识别失败的发票，它们出现在「需手填」sheet 里
-  4. 原始发票文件没有被修改（Skill 说明里写了「不要修改原始文件」）
+  1. 终端里看到 `🔹 organize-invoices v1 启动` 启动标记（证明 Skill 步骤 1 真的执行了）
+  2. `~/accounting-learner/outputs/` 目录里出现了 `invoice_summary_organize-invoices-v1_<当月>.xlsx` 文件（文件名带版本标记）
+  3. Excel 文件里有正确的中文表头：日期 / 商家 / 金额 / 税号（4 列）
+  4. 如果有识别失败的发票，它们出现在「需手填」sheet 里
+  5. 原始发票文件没有被修改（Skill 说明里写了「不要修改原始文件」）
 
   全部确认后，点「我跑完了」。
 </RealStep>
