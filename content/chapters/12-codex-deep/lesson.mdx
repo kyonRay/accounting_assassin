@@ -3,7 +3,15 @@
 <Callout type="warn" title="本章前提：Ch 11 已完成">
 本章假设你已经在 **Ch 11** 装好并登录了 Codex。如果还没，先回 Ch 11 完成安装和登录，再来这里。
 
-如果你没有 ChatGPT Plus / Pro 订阅，同样可以用 **Claude Code** 演示本章所有操作——把命令里的 `codex` 替换成 `claude`，`codex exec` 替换成 `claude -p`，概念完全一样。
+如果你没有 ChatGPT Plus / Pro 订阅，**Claude Code 有类似的能力**，但具体参数不一样——见 Ch 6-10。粗略的对照如下：
+
+| 概念 | Codex | Claude Code |
+|---|---|---|
+| 交互式 REPL | `codex` | `claude` |
+| 一次性 / 脚本化 | `codex exec` | `claude -p`（print 模式） |
+| 放开工作区写权限 | `--sandbox workspace-write` | `--permission-mode acceptEdits`（语义相近，不完全相同） |
+
+不要把这看作 1:1 替换——两个工具的权限模型不一样，盲目套用会报参数错误。本章命令以 Codex 为准。
 </Callout>
 
 ---
@@ -32,17 +40,41 @@ Ch 11 里你用 Codex 完成了单个 CSV 的分类——Codex 会把每一步�
 
 没有快照，"撤销"这件事就没有了明确的目标——你不知道回退到哪里。
 
+<Callout type="warn" title="先告诉 Git：不要碰真实数据">
+**银行流水里有客户姓名、卡号、金额**。如果这个仓库以后给同事看，或者推到 GitHub，这些数据就泄露了——Git 历史里删都删不干净。
+
+所以在 `git add -A` **之前**，先告诉 Git 哪些目录永远不要纳入版本控制：
+
+```bash
+cd ~/accounting-learner
+cat >> .gitignore <<'EOF'
+# 真实账务数据——永远不进 Git
+data/raw/
+data/classified/
+outputs/
+*.csv
+*.xlsx
+EOF
+git add .gitignore
+git commit -m "ignore real accounting data"
+```
+
+这样下面这一步做 `git add -A` 快照时，Git 只会收录脚本、Skill、Hook 这些**代码资产**，而不会把数据文件写进历史。
+</Callout>
+
 <RealStep
   id="workspace-snapshotted"
   command="cd ~/accounting-learner && git add -A && git commit -m 'snapshot before batch run'"
 >
-  在终端里运行上面的命令，把当前工作区的全部内容存档到 Git。
+  **顺序**：先按上面 Callout 里的步骤创建 `.gitignore` 并提交一次，**然后**再运行上面这条 `git add -A` 命令做快照。
 
-  **如果你的工作目录还没有初始化 Git 仓库**（比如从 Ch 6 开始就没用过 Git），先跑这两条：
+  这样快照里只有代码（脚本、Skill、Hook），没有真实的银行流水或客户数据。
+
+  **如果你的工作目录还没有初始化 Git 仓库**（比如从 Ch 6 开始就没用过 Git），先跑这两条，再做 `.gitignore` 和快照：
 
   ```bash
   cd ~/accounting-learner
-  git init && git add -A && git commit -m "initial snapshot"
+  git init
   ```
 
   **如果你的工作区是干净的**（没有未追踪的修改），`git status` 会显示 `nothing to commit`——这也是好事，说明工作区已经处于干净状态。可以直接进行下一步。
@@ -51,10 +83,10 @@ Ch 11 里你用 Codex 完成了单个 CSV 的分类——Codex 会把每一步�
   你在第 8 章学过 `git restore .`——那是出了问题之后的撤销命令。  
   现在学的 `git commit` 快照，是**出问题之前**的保护动作。
 
-  规则很简单：**每次让 AI 自动跑批量任务之前，先 commit 一下**。
+  规则很简单：**每次让 AI 自动跑批量任务之前，先 commit 一下**（前提是 `.gitignore` 已经挡住了真实数据）。
   </Callout>
 
-  快照提交成功（或确认工作区已干净）后，点「我跑完了」。
+  `.gitignore` 提交完成 + 工作区快照提交成功（或确认工作区已干净）后，点「我跑完了」。
 </RealStep>
 
 ---
@@ -108,12 +140,37 @@ Ch 11 里你用 Codex 完成了单个 CSV 的分类——Codex 会把每一步�
 codex exec --sandbox workspace-write "你的任务描述"
 ```
 
-- `--sandbox workspace-write`：允许 Codex 在工作目录里读写文件，不需要每步确认
 - 引号里的内容是你的任务描述（可以很长，很具体）
+- `--sandbox workspace-write` 是关于**权限**的——下面会展开
+
+### 「不弹确认框」到底是哪里来的？两条独立的轴
+
+很多人把 `--sandbox` 和「不弹确认框」混为一谈。这是错的。Codex 里有 **两条独立的轴**，你要分清：
+
+| 轴 | 控制什么 | 标志 |
+|---|---|---|
+| **权限轴**：能改哪些文件 | Codex 能在哪里写文件（只读 / 工作区 / 任意位置） | `--sandbox <mode>` |
+| **审批轴**：动手前要不要问你 | Codex 执行命令前是否暂停等你点「同意」 | `--ask-for-approval <mode>` |
+
+- `--sandbox`：可选值是 `read-only` / `workspace-write` / `danger-full-access`。它只回答「Codex 可以**改哪里的**文件」。
+- `--ask-for-approval`：可选值是 `untrusted` / `on-request` / `never`。它只回答「Codex 动手前**要不要先问你**」。
+
+**关键事实**：
+
+- **交互式 `codex`**（不带 `exec`）默认会弹确认框——即使你加了 `--sandbox workspace-write`。因为 `--sandbox` 不是审批轴的开关，审批轴的默认是 `untrusted`（陌生命令要问）。
+- **`codex exec`** 是 Codex 的**非交互式子命令**，本身就是设计来跑脚本、跑批量的——它「不弹确认框」是因为这个子命令是非交互的，不是因为 `--sandbox` 标志做了什么。
+- 在 `codex exec` 下加 `--sandbox workspace-write`，只是把权限范围放开到工作目录；如果你不加，默认还是只读，AI 会尝试写文件然后失败。
+
+换句话说：
+
+- **「能写工作目录」** 来自 `--sandbox workspace-write`
+- **「不暂停问你」** 来自 `codex exec` 这个子命令本身
+
+两件事要一起到位，本章这条命令才能批量自动跑通。
 
 <Callout type="tip" title="关于 --full-auto 标志">
 你可能在较早的教程里看到过 `codex --full-auto` 这个写法。这个标志在当前版本里已经废弃，运行时会打印警告。  
-现在推荐的写法是 `codex exec --sandbox workspace-write`，功能完全相同。  
+现在推荐的写法是 `codex exec --sandbox workspace-write`，效果相同。  
 如果你不确定自己安装的版本支持哪些选项，运行 `codex --help` 查看完整列表。
 </Callout>
 
@@ -159,13 +216,14 @@ codex exec --sandbox workspace-write "你的任务描述"
 
   ---
 
-  **规则一：有 Git 快照才能用**
+  **规则一：有 Git 快照才能用（而且 `.gitignore` 必须先挡住真实数据）**
 
   `codex exec` 对文件的修改是不可撤销的——除非你有 Git 快照。  
   每次批量任务之前，先 `git commit`。出了问题，`git restore .` 一条命令完全恢复。
 
-  参考 **Ch 8** 教过的这个工作流：
-  - 批量跑之前 → `git add -A && git commit -m "snapshot before batch run"`
+  参考 **Ch 8** 教过的这个工作流，**再加上本章开头的 `.gitignore` 前置步骤**：
+  - 一次性准备 → `.gitignore` 里写好 `data/raw/` `data/classified/` `outputs/` `*.csv` `*.xlsx`，单独提交一次
+  - 批量跑之前 → `git add -A && git commit -m "snapshot before batch run"`（此时只会收录代码，不会收录真实数据）
   - 出了问题 → `git restore .` （撤销所有未提交修改）
   - 如果还创建了新文件 → `git clean -i`（交互式逐一确认删除）
 

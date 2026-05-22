@@ -28,15 +28,32 @@
 codex exec --sandbox workspace-write "你的任务描述"
 ```
 
-- `--sandbox workspace-write`：允许工作目录内读写，不弹确认框
 - `--full-auto`：旧标志，**已废弃**，当前版本运行时打印警告，不推荐使用
 
-**审批模式说明**（通过 `/permissions` 在会话内切换）：
-- Auto（默认）：工作目录内操作自动通过，工作目录外提示确认
-- Read-only：只读，任何写操作需要确认
-- Full Access：完全无提示（谨慎使用）
+### 两条独立的轴（lesson.mdx 必须保持这个区分）
 
-**如果命令格式将来发生变化**，只需更新 lesson.mdx 里的 `command=` 属性和说明文字，checker.ts 不需要改。
+Codex 的权限和审批是**两条不同的轴**，绝对不能在课文里混为一谈：
+
+1. **`--sandbox <mode>`（权限轴）**：Codex 能在哪里写文件。
+   - 可选值：`read-only` / `workspace-write` / `danger-full-access`
+   - 这个标志**不**控制是否弹确认框。
+2. **`--ask-for-approval <mode>`（审批轴）**：Codex 执行命令前要不要暂停等用户点同意。
+   - 可选值：`untrusted`（默认，陌生命令要问） / `on-request` / `never`
+3. **`codex exec` 是非交互式子命令**：它「不弹确认框」是因为子命令本身是非交互的，**不是因为** `--sandbox` 做了什么。
+   - 交互式 `codex` + `--sandbox workspace-write` 仍然会弹确认框。
+
+**如果命令格式将来发生变化**，只需更新 lesson.mdx 里的 `command=` 属性和说明文字，checker.ts 不需要改。但**不要**在重写时把权限轴和审批轴混回一句话——这是 Ch 12 的概念底线。
+
+## Claude Code 对照（不能写成 1:1 替换）
+
+Claude Code 的权限模型和 Codex 不一样，**不能**写成「把 codex 换成 claude 就行」：
+
+- `codex` ≈ `claude`（都是交互式 REPL）
+- `codex exec` ≈ `claude -p` / `--print`（都是非交互式 / headless）
+- `codex --sandbox workspace-write` 在 Claude Code 这边对应的是 `--permission-mode acceptEdits`（语义相近，**不**完全相同）——不是 `--sandbox`，也不是 `--dangerously-skip-permissions`
+- Claude Code 还有 `--allowedTools` / `--disallowedTools` 这套独立的工具白名单机制，Codex 没有对应物
+
+课文里只能说「类似的能力，参数不一样，详见 Ch 6-10」，不能说「概念完全一样」。
 
 ## 可以自由改动的
 
@@ -53,6 +70,7 @@ codex exec --sandbox workspace-write "你的任务描述"
 - **风险描述要务实，不要恐惧化**——安全规则是成年人风险管理，不是「这个工具很危险请小心」。
 - **本章无 sandbox-fixture 目录**——Ch 12 是纯真实环境章节，使用用户自己的 `~/accounting-learner/` 工作目录。
 - **Git 词汇对齐 Ch 8**：撤销用 `git restore .`，新建文件清理用 `git clean -i`，绝对不用 `git checkout .`。
+- **`.gitignore` 必须出现在 `git add -A` 之前**：银行流水 / 客户数据是真实敏感信息。如果课文教学员先 `git add -A` 再 `git commit`，数据就会被写进 Git 历史，以后推到 GitHub 或分享仓库时无法清理。重写时必须保留：在第一次 `git add -A` 之前，先把 `data/raw/` / `data/classified/` / `outputs/` / `*.csv` / `*.xlsx` 加进 `.gitignore` 并单独提交一次。
 
 ## 无 sandbox-fixture 目录
 
