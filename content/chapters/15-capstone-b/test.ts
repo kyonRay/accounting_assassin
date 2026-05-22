@@ -10,7 +10,7 @@ import { check } from "./checker";
 //   workspace-prepared        — user confirmed Ch 14 outputs exist, created capstone-b/
 //   voucher-script-scaffolded — Claude scaffolded capstone-b/voucher-gen/ project
 //   skill-orchestrator-written— user wrote ~/.claude/skills/month-end-close/SKILL.md
-//   hook-installed            — user installed the PostToolUse log hook for capstone-b
+//   hook-capstone-b-installed            — user installed the PostToolUse log hook for capstone-b
 //   workflow-run              — user ran full month-end workflow ("帮我做本月结账")
 //   reflection-completed      — user completed the closing reflection
 
@@ -20,7 +20,7 @@ describe("Ch 15 · 毕业作品 B · 月末结账 AI 工作流", () => {
     await fs.write(".progress/workspace-prepared", "done");
     await fs.write(".progress/voucher-script-scaffolded", "done");
     await fs.write(".progress/skill-orchestrator-written", "done");
-    await fs.write(".progress/hook-installed", "done");
+    await fs.write(".progress/hook-capstone-b-installed", "done");
     await fs.write(".progress/workflow-run", "done");
     await fs.write(".progress/reflection-completed", "done");
 
@@ -34,7 +34,7 @@ describe("Ch 15 · 毕业作品 B · 月末结账 AI 工作流", () => {
     const fs = createVirtualFs();
     await fs.write(".progress/voucher-script-scaffolded", "done");
     await fs.write(".progress/skill-orchestrator-written", "done");
-    await fs.write(".progress/hook-installed", "done");
+    await fs.write(".progress/hook-capstone-b-installed", "done");
     await fs.write(".progress/workflow-run", "done");
     await fs.write(".progress/reflection-completed", "done");
 
@@ -47,7 +47,7 @@ describe("Ch 15 · 毕业作品 B · 月末结账 AI 工作流", () => {
     const fs = createVirtualFs();
     await fs.write(".progress/workspace-prepared", "done");
     await fs.write(".progress/skill-orchestrator-written", "done");
-    await fs.write(".progress/hook-installed", "done");
+    await fs.write(".progress/hook-capstone-b-installed", "done");
     await fs.write(".progress/workflow-run", "done");
     await fs.write(".progress/reflection-completed", "done");
 
@@ -60,7 +60,7 @@ describe("Ch 15 · 毕业作品 B · 月末结账 AI 工作流", () => {
     const fs = createVirtualFs();
     await fs.write(".progress/workspace-prepared", "done");
     await fs.write(".progress/voucher-script-scaffolded", "done");
-    await fs.write(".progress/hook-installed", "done");
+    await fs.write(".progress/hook-capstone-b-installed", "done");
     await fs.write(".progress/workflow-run", "done");
     await fs.write(".progress/reflection-completed", "done");
 
@@ -69,7 +69,7 @@ describe("Ch 15 · 毕业作品 B · 月末结账 AI 工作流", () => {
     expect(result.hint).toMatch(/Skill|SKILL\.md|month-end-close/i);
   });
 
-  it("缺少 hook-installed → 第一次提示含 Hook/钩子/PostToolUse 关键词", async () => {
+  it("缺少 hook-capstone-b-installed → 第一次提示含 Hook/钩子/PostToolUse 关键词", async () => {
     const fs = createVirtualFs();
     await fs.write(".progress/workspace-prepared", "done");
     await fs.write(".progress/voucher-script-scaffolded", "done");
@@ -87,7 +87,7 @@ describe("Ch 15 · 毕业作品 B · 月末结账 AI 工作流", () => {
     await fs.write(".progress/workspace-prepared", "done");
     await fs.write(".progress/voucher-script-scaffolded", "done");
     await fs.write(".progress/skill-orchestrator-written", "done");
-    await fs.write(".progress/hook-installed", "done");
+    await fs.write(".progress/hook-capstone-b-installed", "done");
     await fs.write(".progress/reflection-completed", "done");
 
     const result = await runChecker(check, { mode: "real", fs }, 1);
@@ -100,7 +100,7 @@ describe("Ch 15 · 毕业作品 B · 月末结账 AI 工作流", () => {
     await fs.write(".progress/workspace-prepared", "done");
     await fs.write(".progress/voucher-script-scaffolded", "done");
     await fs.write(".progress/skill-orchestrator-written", "done");
-    await fs.write(".progress/hook-installed", "done");
+    await fs.write(".progress/hook-capstone-b-installed", "done");
     await fs.write(".progress/workflow-run", "done");
 
     const result = await runChecker(check, { mode: "real", fs }, 1);
@@ -117,7 +117,7 @@ describe("Ch 15 · 毕业作品 B · 月末结账 AI 工作流", () => {
     expect(result.passed).toBe(false);
     // Second hint should mention specific step ids or "我跑完了"
     expect(result.hint).toMatch(
-      /voucher-script-scaffolded|skill-orchestrator-written|hook-installed|workflow-run|reflection-completed|我跑完了/,
+      /voucher-script-scaffolded|skill-orchestrator-written|hook-capstone-b-installed|workflow-run|reflection-completed|我跑完了/,
     );
   });
 
@@ -145,7 +145,7 @@ describe("Ch 15 · lesson.mdx", () => {
     expect(text).toMatch(/id=["']workspace-prepared["']/);
     expect(text).toMatch(/id=["']voucher-script-scaffolded["']/);
     expect(text).toMatch(/id=["']skill-orchestrator-written["']/);
-    expect(text).toMatch(/id=["']hook-installed["']/);
+    expect(text).toMatch(/id=["']hook-capstone-b-installed["']/);
     expect(text).toMatch(/id=["']workflow-run["']/);
     expect(text).toMatch(/id=["']reflection-completed["']/);
   });

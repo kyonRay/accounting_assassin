@@ -11,7 +11,7 @@
 | `workspace-prepared` | 用户确认 Ch 14 capstone-a/ 三工具就绪，创建 capstone-b/ 目录 | `expectsCli="Python3"` |
 | `voucher-script-scaffolded` | Claude 搭建 capstone-b/voucher-gen/ 凭证生成工具 | — |
 | `skill-orchestrator-written` | 用户写出 ~/.claude/skills/month-end-close/SKILL.md | — |
-| `hook-installed` | 用户安装 PostToolUse Hook 到 settings.local.json | — |
+| `hook-capstone-b-installed` | 用户安装 PostToolUse Hook 到 settings.local.json | — |
 | `workflow-run` | 用户运行完整月末结账工作流（一句话触发 Skill） | `expectsCli="Python3"` |
 | `reflection-completed` | 用户读完课程总结，完成毕业回顾 | 无 command= |
 

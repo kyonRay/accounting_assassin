@@ -22,7 +22,7 @@ export const check: CheckerFn = async (env) => {
   const skillOrchestratorWritten = await fs.exists(
     ".progress/skill-orchestrator-written",
   );
-  const hookInstalled = await fs.exists(".progress/hook-installed");
+  const hookInstalled = await fs.exists(".progress/hook-capstone-b-installed");
   const workflowRun = await fs.exists(".progress/workflow-run");
   const reflectionCompleted = await fs.exists(".progress/reflection-completed");
 
@@ -83,7 +83,7 @@ export const check: CheckerFn = async (env) => {
   if (!voucherScriptScaffolded) missingIds.push('"voucher-script-scaffolded"');
   if (!skillOrchestratorWritten)
     missingIds.push('"skill-orchestrator-written"');
-  if (!hookInstalled) missingIds.push('"hook-installed"');
+  if (!hookInstalled) missingIds.push('"hook-capstone-b-installed"');
   if (!workflowRun) missingIds.push('"workflow-run"');
   if (!reflectionCompleted) missingIds.push('"reflection-completed"');
 
