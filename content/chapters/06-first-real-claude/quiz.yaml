@@ -10,8 +10,8 @@ questions:
         text: "一个网页链接，告诉你去哪里下载"
         feedback: "--version 输出的是版本号，不是网页链接。如果看到的是 command not found，说明还没装好。"
       - id: B
-        text: "类似 claude/1.0.42 darwin-arm64 node-v22.x.x 这样的版本字符串"
-        feedback: "完全正确！这就是 Claude Code CLI 的版本输出格式：工具名/版本号 + 系统信息。"
+        text: "一行类似 2.0.5 (Claude Code) 的版本字符串"
+        feedback: "完全正确！Claude Code 的版本输出就是单行的「版本号 (Claude Code)」格式。"
         correct: true
       - id: C
         text: "一段很长的 JSON 配置"
