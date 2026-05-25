@@ -9,13 +9,16 @@ import { createVirtualFs } from "@/modules/Sandbox/virtual-fs";
 import { runChecker } from "@/modules/Checker";
 import { check } from "./checker";
 
-// Sample fixture for the inline test (real fixture file has more rows)
+// Sample fixture for the inline test (real fixture file has more rows).
+// Must cover all 5 lesson categories (餐饮/办公/差旅/云服务/通讯) — the checker
+// validates fixture state against EXPECTED_CATEGORIES.
 const FIXTURE = {
   "invoices.csv": [
     "date,vendor,category,amount",
     "2026-04-01,某餐厅,餐饮,128.50",
     "2026-04-02,某打印店,办公,245.80",
     "2026-04-03,云服务公司,云服务,899.00",
+    "2026-04-04,中国移动,通讯,99.00",
     "2026-04-08,某餐厅,餐饮,456.80",
     "2026-04-15,某交通,差旅,890.00",
     "2026-04-22,某餐厅,餐饮,289.60",
@@ -64,6 +67,28 @@ describe("Ch 03 · 让 AI 写代码", () => {
     expect(result.showAnswerButton).toBe(true);
   });
 
+  // Item 4 (REVIEW-TRIAGE): both markers set but invoices.csv corrupted /
+  // missing a category → checker must NOT silently bypass.
+  it("两个 marker 都 set,但 fixture 缺类目 → checker 不放过 + 提示重置", async () => {
+    const fs = createVirtualFs();
+    // Load a fixture missing "通讯" entirely
+    await fs.loadFixture({
+      "invoices.csv": [
+        "date,vendor,category,amount",
+        "2026-04-01,某餐厅,餐饮,128.50",
+        "2026-04-02,某打印店,办公,245.80",
+        "2026-04-03,云服务公司,云服务,899.00",
+        "2026-04-15,某交通,差旅,890.00",
+      ].join("\n"),
+    });
+    await fs.write(".progress/script-written", "done");
+    await fs.write(".progress/output-verified", "done");
+
+    const result = await runChecker(check, { mode: "sandbox", fs }, 1);
+    expect(result.passed).toBe(false);
+    expect(result.hint).toMatch(/通讯|重置|invoices/);
+  });
+
   // Fixture sanity: real CSV file on disk has ≥40 data rows + header
   it("sandbox-fixture/invoices.csv 至少 40 笔数据 + header", async () => {
     const fs = await import("node:fs/promises");
@@ -105,7 +130,7 @@ import csv
 from collections import defaultdict
 
 totals = defaultdict(float)
-with open("invoices.csv") as f:
+with open("invoices.csv", encoding="utf-8") as f:
     reader = csv.DictReader(f)
     for row in reader:
         totals[row["category"]] += float(row["amount"])
@@ -122,10 +147,12 @@ for cat in sorted(totals):
       //   办公: 245.80
       //   云服务: 899.00
       //   差旅: 890.00
+      //   通讯: 99.00
       expect(result.stdout).toMatch(/餐饮:\s*874\.90/);
       expect(result.stdout).toMatch(/办公:\s*245\.80/);
       expect(result.stdout).toMatch(/云服务:\s*899\.00/);
       expect(result.stdout).toMatch(/差旅:\s*890\.00/);
+      expect(result.stdout).toMatch(/通讯:\s*99\.00/);
     },
     60_000, // pyodide WASM load is slow on first call
   );

@@ -6,6 +6,20 @@ interface Ch03Env {
   fs: VirtualFs;
 }
 
+// The 5 categories the lesson promises invoices.csv covers. If any are missing,
+// the sandbox state was tampered with or the fixture didn't load — either way
+// the lesson's "数字可追溯" claim doesn't hold, so we should not pass.
+const EXPECTED_CATEGORIES = ["餐饮", "办公", "差旅", "云服务", "通讯"] as const;
+
+// TODO(Ch3): the SandboxStep components currently only write `.progress/<id>`
+// marker files when the learner clicks "我做完了" — the Pyodide script is not
+// actually executed end-to-end through the lesson UI (only through the
+// integration test in test.ts). When we wire SandboxStep to optionally trigger
+// a real `pyodide-runner.run(...)` and capture stdout, replace the
+// fixture-category check below with a real stdout assertion that the per-
+// category sums appear (e.g. `/办公:\s*\d+\.\d{2}/`). See REVIEW-TRIAGE.md
+// item 4 (Ch 03).
+
 export const check: CheckerFn = async (env) => {
   const fs = (env as unknown as Ch03Env).fs;
   if (!fs) {
@@ -18,13 +32,32 @@ export const check: CheckerFn = async (env) => {
   const scriptWritten = await fs.exists(".progress/script-written");
   const outputVerified = await fs.exists(".progress/output-verified");
 
-  if (scriptWritten && outputVerified) {
+  // Minimum-viable output validation: even if both markers are set, confirm
+  // the fixture invoices.csv is loaded AND contains every category the lesson
+  // promised. Catches the case where someone bypassed the sandbox setup
+  // (cleared fs, edited fixture, etc.) and would otherwise sail through.
+  let fixtureOk = false;
+  let missingCategories: string[] = [];
+  try {
+    const csv = await fs.read("invoices.csv");
+    missingCategories = EXPECTED_CATEGORIES.filter((c) => !csv.includes(c));
+    fixtureOk = missingCategories.length === 0;
+  } catch {
+    fixtureOk = false;
+    missingCategories = [...EXPECTED_CATEGORIES];
+  }
+
+  if (scriptWritten && outputVerified && fixtureOk) {
     return { passed: true };
   }
 
   const hints: string[] = [];
   // First-attempt directional hint
-  if (!scriptWritten && !outputVerified) {
+  if (!fixtureOk && scriptWritten && outputVerified) {
+    hints.push(
+      `沙箱里的 invoices.csv 状态不对,缺少类目 ${missingCategories.join("/")} —— 试试 [重置沙箱] 按钮重新加载发票数据。`,
+    );
+  } else if (!scriptWritten && !outputVerified) {
     hints.push(
       "你似乎跳过了两步实操,先回到上面看 AI 写代码,再看沙箱跑出的结果。",
     );
