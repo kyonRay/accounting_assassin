@@ -177,7 +177,7 @@ codex exec --sandbox workspace-write "你的任务描述"
 <RealStep
   id="auto-approve-tried"
   expectsCli="Codex"
-  command="cd ~/accounting-learner && codex exec --sandbox workspace-write \"帮我把 data/raw/ 目录下的所有 CSV 文件，按支出类目分类，每个文件输出到 data/classified/ 目录，文件名加上 _classified 后缀\""
+  command={`cd ~/accounting-learner && codex exec --sandbox workspace-write "帮我把 data/raw/ 目录下的所有 CSV 文件，按支出类目分类，每个文件输出到 data/classified/ 目录，文件名加上 _classified 后缀"`}
 >
   在终端里运行上面的命令（注意引号是命令的一部分）。
 
