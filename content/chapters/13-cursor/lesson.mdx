@@ -1,14 +1,15 @@
 # 第 13 章 · Cursor 工作流：第三种 vibe-coding 方式
 
-<Callout type="warn" title="没有 Cursor 订阅？先看这里">
-Cursor 个人档位（2026-05 核对自 [cursor.com/pricing](https://cursor.com/pricing)）：**Hobby 免费 / Pro $20/月 / Pro+ $60/月 / Ultra $200/月**。
+<Callout type="warn" title="开始之前：你的档位决定走哪条路（2026-05 核对自 cursor.com/pricing）">
+Cursor 个人档位：**Hobby 免费 / Pro $20/月 / Pro+ $60/月 / Ultra $200/月**。
 
-如果你打算试 Cursor：
-- **Hobby（免费）**：可以体验 Composer 和 @ 引用，受请求次数限制。
-- **Pro（$20/月起）**：上述功能 + Background Agent（云端代理）。
+**先确定你是哪一档，这决定你走哪条路线：**
 
-如果你目前完全没账号也没问题——**本章的概念部分同样有价值**，你可以通读了解三种工具的差异。  
-遇到不能跑实操的步骤，可以跳过手操部分、直接读到最后的「三工具对比」。概念学到了，工具可以之后再补。
+- **你有 Cursor Pro 订阅（或试用期内）** → **全章走完**，§2–§7 六个 RealStep 任务都能跑（§6 Background Agent 也能实操）。
+- **你只是 Hobby 免费档** → **仍然装上 Cursor，跟着走完 §2–§5**（安装 + 登录 + Composer 任务 + @ 引用，这四步免费档完全可以跑）。§6 Background Agent 你只能**读概念 + 看入口**——实操跳过，但 §6 顶部的**云端合规警告必读**（关系到你以后会不会用错）。§7 三工具对比所有人都要读。
+- **你目前完全没装 Cursor 也不打算装** → 跳过 §2–§6 的手操，直接读 §1 概念 + §7 对比表。这一档拿不到 RealStep 完成标记，但概念学习的核心价值保留。
+
+不管走哪条路，**§2 第一步装好 Cursor 后必须先开 Privacy Mode**（下面 §2 的 RealStep 里有详细步骤），不然你的代码会默认上传到 Cursor 服务器。这条对会计场景是硬底线。
 </Callout>
 
 ---
@@ -71,6 +72,16 @@ Cursor 个人档位（2026-05 核对自 [cursor.com/pricing](https://cursor.com/
 
   你会看到类似 `Cursor 0.x.x` 的版本号。
 
+  <Callout type="warn" title="点 'Install command' 时会弹 macOS 系统密码框——不是病毒">
+  点完 "Install 'cursor' command" 之后，屏幕上会弹一个**灰底白字的小窗口**，左侧是 Terminal 图标，写着「Terminal wants to make changes」之类的字样，要求你输入密码。
+
+  **这不是病毒**——Cursor 在帮你装一个 `cursor` 命令到 `/usr/local/bin/` 或 `/opt/homebrew/bin/`，这两个目录是 macOS 的系统级目录，**任何 App 往这里写文件都需要你的电脑开机密码授权**（这是 macOS 自己的保护机制，不是 Cursor 的）。
+
+  **怎么做**：输你的**电脑开机密码**（不是 Cursor 账号密码、不是 Apple ID），回车。屏幕上**不会显示星号或圆点**，但你的输入是收到的——闷头打完密码、按回车就行。
+
+  完成后命令面板会显示成功提示。如果你输错了密码，会再弹一次让你重试。
+  </Callout>
+
   <Callout type="tip" title="找不到「Install 'cursor' command」？">
   在命令面板里搜索 "shell command" 或 "install cursor"，不同版本的 Cursor 菜单文字可能略有差异。或者在菜单栏找 **Cursor → Install 'cursor' command**。
   </Callout>
@@ -122,6 +133,14 @@ Cursor 个人档位（2026-05 核对自 [cursor.com/pricing](https://cursor.com/
 
   也可以通过 `Cmd+Shift+P → "Sign In"` 手动触发登录。
 
+  <Callout type="warn" title="登录卡住了？两种常见情况的兜底">
+  **情况一：浏览器授权成功了，但没自动跳回 Cursor.app（最常见）**
+  关掉浏览器窗口，直接看 Cursor.app 本体——它会自己显示已登录状态（左下角出现账号邮箱）。不需要再点别的按钮。如果还是没登上，关掉 Cursor.app 再打开一次，登录状态通常就出现了。
+
+  **情况二：cursor.com 域名连不上（国内网络 / 公司代理 / 学校网络拦截）**
+  授权流程必须连得上 cursor.com。如果浏览器打开 cursor.com 都失败（一直转圈或显示拒绝连接），说明你当前的网络环境拦截了这个域名——用手机开个热点试试，或者换一个网络环境（家里 / 咖啡店）再做这一步。**这不是 Cursor 出问题，是网络层面**。
+  </Callout>
+
   确认左下角或侧边栏显示了你的账号信息之后，点「我跑完了」。
 </RealStep>
 
@@ -133,15 +152,27 @@ Cursor 个人档位（2026-05 核对自 [cursor.com/pricing](https://cursor.com/
 
 在终端里，Claude Code 和 Codex 也能修改多文件——但 Cursor Composer 的优势在于：你可以在图形界面里**看到每个文件的改动、逐个接受或拒绝**，同时保持整个任务上下文完整。
 
-### 典型使用场景
+### 典型使用场景（真实会计版）
 
-你想把 `~/accounting-learner/scripts/` 目录下所有 Python 脚本的报错信息改为中文。手动改每个文件很烦——Composer 一次搞定。
+你在 Ch 7 写的 `scripts/invoice_ocr.py` 当前只处理人民币（CNY）发票——如果客户给的是美元、欧元、港币发票，脚本会出错（CSV 里 `amount` 字段会变成混着不同币种的数字，加总出来的"总金额"毫无意义）。
+
+让 Composer 帮你给这个脚本加币种支持：(a) 从 OCR 提取 `currency` 字段；(b) CSV 输出多一列 `currency`；(c) 不认识的币种回退到 `CNY` 并打印警告。
 
 <RealStep
   id="composer-tried"
   command="cursor ~/accounting-learner"
 >
-  **在终端里用 Cursor 打开你的工作目录：**
+  **第一步：先做 Git 快照**（重要）
+
+  在终端里：
+
+  ```bash
+  cd ~/accounting-learner && git add -A && git commit -m "snapshot before cursor composer"
+  ```
+
+  这一步和 Ch 12 用 `codex exec` 之前的快照纪律是一样的——Composer 改坏了，`git restore .` 一条命令回滚。
+
+  **第二步：在终端里用 Cursor 打开你的工作目录**
 
   ```bash
   cursor ~/accounting-learner
@@ -149,36 +180,43 @@ Cursor 个人档位（2026-05 核对自 [cursor.com/pricing](https://cursor.com/
 
   或者在 Cursor.app 里通过 **File → Open Folder** 打开 `~/accounting-learner`。
 
-  **打开 Composer：**
+  **第三步：打开 Composer**
 
   按 `Cmd+Shift+P`，搜索 **"Open Composer"**，回车。
 
   （Composer 的快捷键在不同版本可能是 `Cmd+I` 或 `Cmd+K`——用命令面板最保险。）
 
-  **给 Composer 一个多文件任务：**
+  **第四步：给 Composer 这个跨文件任务**
 
   在 Composer 输入框里输入：
 
   ```
-  帮我在 scripts/ 目录下所有 Python 文件里，
-  在每个脚本末尾添加一行：
-  print(f"[完成] 脚本运行结束，时间：{__import__('datetime').datetime.now()}")
+  请帮我修改 scripts/invoice_ocr.py 这个脚本，给它加上多币种支持。
+
+  当前问题：脚本只处理人民币（CNY）发票。如果发票是 USD/EUR/HKD，
+  CSV 输出里看不出币种，加总出来的金额没意义。
+
+  需要做三件事：
+  1. 从 OCR 返回的 JSON 里读取 fields.amount.currency 字段
+     （这个字段 aa-ocr 已经在输出里给出了，例如 "CNY"、"USD"）
+  2. CSV 输出里新增一列 "currency"，放在 "amount" 列后面
+  3. 如果 currency 不在 ["CNY", "USD", "EUR", "HKD", "JPY"] 这五个里，
+     回退到 "CNY" 并 print 一行警告：
+     [警告] 发票 {文件名} 的币种 {未知值} 不在已知列表，按 CNY 处理
+
+  改完后请同时检查脚本里所有写 CSV 表头的地方都同步更新，
+  确保新旧 CSV 字段对齐。
   ```
 
-  按回车，观察 Composer 如何同时展示多个文件的修改建议。你可以逐个文件接受（Accept）或拒绝（Reject）。
+  按回车。**观察 Composer 的行为**：它会同时展示 `scripts/invoice_ocr.py` 里多处改动（读 JSON 的地方、写 CSV 表头的地方、写 CSV 行的地方、新增的警告分支）——你可以逐个文件 / 逐个 diff Accept 或 Reject。
 
-  <Callout type="tip" title="scripts/ 目录里没有 Python 文件？">
-  没关系——输入一个简化版任务，比如：
+  这就是 Composer 相对终端 AI 的核心价值：**多处相关改动一次性、图形化、可逐项审阅**。
 
-  ```
-  在 ~/accounting-learner 目录下新建 scripts/hello.py 和 scripts/world.py 两个文件，
-  每个文件里写一行 print("hello") 或 print("world")
-  ```
-
-  让 Composer 创建一批文件再来体验修改。
+  <Callout type="tip" title="scripts/invoice_ocr.py 不存在？">
+  如果你跳过了 Ch 7、`scripts/invoice_ocr.py` 还没创建——退而求其次：在 Composer 输入框里把任务改成"**挑 `~/accounting-learner/scripts/` 里随便一个 Python 文件，加一个 `--verbose` 命令行参数，开了之后多打印几行调试信息**"。重点是体验 Composer 同时展示多处改动 + 逐项接受/拒绝的工作流，具体任务不重要。
   </Callout>
 
-  观察到 Composer 展示了多文件改动建议之后，点「我跑完了」。
+  接受 / 拒绝完所有改动、看到脚本最终改完之后，点「我跑完了」。
 </RealStep>
 
 ---
@@ -197,26 +235,46 @@ Cursor 个人档位（2026-05 核对自 [cursor.com/pricing](https://cursor.com/
 
   你会看到一个下拉列表，列出了你工作目录里的文件。
 
-  选择一个你想讨论的文件，比如 `invoice_ocr.py`（如果它存在），或者你在上一步里创建的 `scripts/hello.py`。
+  ### 真实任务：让 Cursor 给你的脚本写一份接手说明
 
-  然后继续输入一个问题，例如：
+  你刚给 `invoice_ocr.py` 加了币种支持（上一步 Composer 改完的）。现在假设你下周休假，要把这个脚本交给同事接手——同事需要一份**简短的中文说明**，告诉他这脚本是干嘛的、怎么跑、怎么改字段。
+
+  自己写很慢，而且你写不清楚脚本里所有的细节。让 Cursor 帮你写。
+
+  在 Chat 输入框里输入：
 
   ```
-  @scripts/hello.py 帮我把这个文件改成可以接受命令行参数，
-  接收一个名字并打印「你好，[名字]！」
+  @scripts/invoice_ocr.py @CLAUDE.md
+  请基于这两份文件，给我写一份 5–8 行的 README，
+  放在 scripts/invoice_ocr.README.md。
+  目标读者：一个第一次接手这个脚本的会计同事。
+  必须涵盖：
+  - 这个脚本是干嘛的（一句话）
+  - 怎么跑（一行命令示例）
+  - 输入是什么、输出是什么
+  - 想改提取字段（例如加发票号）该改哪一段
+  用中文写，不要写代码注释那种风格，要写给"人"看。
   ```
 
-  **观察 @ 引用的效果**：
-  - Cursor 不需要你先解释文件在哪里、是什么
-  - 它直接读取那个文件的内容，在回答里精准引用你的代码
-  - 你可以在同一个对话里 @ 多个文件，逐步扩大上下文范围
+  按回车。**观察 @ 引用的效果**：
+  - Cursor 不需要你先解释"我有个脚本叫 invoice_ocr.py，它的作用是……"——你 @ 进去它直接读了
+  - 同时 @ 了 `CLAUDE.md`，Cursor 也知道整个项目的上下文（数据隐私底线、目录约定等），写出来的 README 会跟项目风格一致
+  - 输出的 README 是基于**真实代码内容**的，不是 Cursor 凭空猜的
 
   <Callout type="insight" title="@ 引用的本质">
-  @ 引用做的事，和你手动把文件内容复制粘贴给 AI 是一样的——只不过 Cursor 帮你自动化了这个步骤。  
+  @ 引用做的事，和你手动把文件内容复制粘贴给 AI 是一样的——只不过 Cursor 帮你自动化了这个步骤。
   真正有价值的是：**你可以 @ 一个函数、一个类、甚至一个文档链接**，不只是文件。这让你可以非常精准地控制 AI 看到的上下文范围。
+
+  在会计工作里 @ 引用最常见的两种用法：
+  - **接手 / 交接**：`@这个脚本 @这份说明 给同事写份 README`
+  - **跨文件理解**：`@invoice_ocr.py @batch_ocr.py 这两个脚本是什么关系？哪些函数在做相同的事？`（避免重复代码）
   </Callout>
 
-  用 @ 引用了一个文件并观察到 AI 的精准回应之后，点「我跑完了」。
+  <Callout type="tip" title="invoice_ocr.py 或 CLAUDE.md 不存在？">
+  跳过了前面章节的话，@ 任何一个 `scripts/` 下的 `.py` 文件都行，prompt 改成"用中文给这份脚本写一份 5 行 README"即可。重点是体验 @ 直接喂文件给 AI、跳过手动解释项目结构这一步的工作流。
+  </Callout>
+
+  生成出 README 文件（不管 Cursor 是直接写文件还是把内容贴在 chat 里让你自己保存）、看到内容基于真实代码而不是泛泛而谈之后，点「我跑完了」。
 </RealStep>
 
 ---
@@ -257,20 +315,21 @@ Background Agent 的真实运作方式（来源：[Cursor Cloud Agent 文档](ht
 
   在 Cursor 里，通过 `Cmd+Shift+P` 搜索 **"Background Agent"**，或在侧边栏找到对应入口（不同版本界面可能略有差异）。
 
-  **方案 A（推荐做法 —— 只看入口，不提交真实数据任务）：**
+  **方案 A（推荐做法 —— 只读演示，不提交真实数据）：**
 
-  打开 Background Agent 面板，**只观察它要求你做什么**：通常会要求连接 GitHub、选择仓库、配置 Dockerfile / 环境，等等。看到这些就够了——它在向你坦白"我需要把你的代码上传到云端"。
+  打开 Background Agent 面板，**只观察它要求你做什么**：通常会要求连接 GitHub、选择仓库、配置 Dockerfile / 环境、授权 push 回 GitHub 等。**看到这些权限请求就够了**——它在向你坦白"我需要把你的代码 clone 到云端，跑完再 push 回 GitHub"。
 
-  **方案 B（仅适用于 Pro 账号 + 非敏感仓库）：**
-
-  如果你确实想跑一次，准备一个 **不含真实会计数据** 的小测试仓库（例如自己新建一个 GitHub 仓库，只放几个 `print("hello")` 的 Python 文件），让 Background Agent 给它生成测试文件：
+  如果你想再多看一步，但**不实际上传任何真实数据**：用一个**全新的空 GitHub 仓库**（或者你自己之前建的纯学习仓库，里面只有几个 `print("hello")` 的 Python 文件）做演示，给 Background Agent 一个最简单的任务：
 
   ```
-  为这个仓库里每个 Python 文件生成一个对应的 _test.py 测试文件，
-  每个测试文件包含至少两个简单的断言测试
+  Add a hello.py that prints "Hello from Background Agent".
   ```
 
-  **不要** 把 `~/accounting-learner/` 直接挂到 Background Agent。
+  看 Background Agent 会问你什么权限（GitHub 授权、仓库选择、是否允许它创建 PR 等）、跑完之后它会以什么方式把结果交付给你（通常是 GitHub 上的一个新 PR）。**整个过程你的真实会计数据完全没出现过**——演示完就关掉这个仓库。
+
+  **方案 B（除非你完全清楚自己在做什么，否则不要走这条路）：**
+
+  即使你是 Pro 账号、即使有完整 Privacy Mode，也**不要**把 `~/accounting-learner/` 直接挂到 Background Agent——因为这个目录里的真实客户姓名、银行卡号、税号、金额会被 Cursor clone 到云端 Docker 容器、走过 GitHub。Privacy Mode 管的是"不被用来训练模型"，**不管"数据是否离开你电脑"**。这两件事不一样。
 
   <Callout type="insight" title="异步代理 vs 本地工具——不是更聪明，是更远">
   Background Agent 和 Claude Code / Codex 的区别不是智能程度——而是：
@@ -281,10 +340,18 @@ Background Agent 的真实运作方式（来源：[Cursor Cloud Agent 文档](ht
   对会计场景：**本机数据 → 本地 Composer 更稳**。云端代理留给开源代码 / 公开数据这类不敏感的任务。
   </Callout>
 
-  <Callout type="warn" title="档位说明（2026-05 核对自 cursor.com/pricing）">
+  <Callout type="warn" title="Hobby 免费用户：怎么判断这一步算「学完」">
   Background Agent **从 Cursor Pro（$20/月）档位开始包含**，免费 Hobby 不包含。
 
-  如果你目前只有 Hobby 免费账号，Background Agent 入口可能不可用 / 受限。此时直接点「我跑完了」——本步骤的概念你已经通过阅读掌握了。
+  **Hobby 用户跳过实操的判据：** 你读完了上面的 Background Agent 云端架构警告（云端 Docker 容器 + GitHub 仓库 + 临时分支）+ §2 的 Privacy Mode 已经在你的 Cursor 里开了 → 这一步的学习目标已达成，直接点「我跑完了」。**这不是放弃，这是"知道工具的边界在哪"——比真去跑一次更重要**。
+  </Callout>
+
+  <Callout type="tip" title="你不是 Hobby，但点 Background Agent 入口完全没反应？">
+  按这个顺序排查：
+  1. 看 Cursor 应用**左下角**——是不是显示已登录状态（账号邮箱可见）？没登录的话回 §3。
+  2. 打开 **Settings → Cursor Subscription**（或 Account 页面），确认订阅状态是 Pro 或更高，没有过期。
+  3. 试用期刚结束、订阅还没续 → 入口会灰掉或提示升级，不是 bug。
+  4. 都正常但还是不行 → 命令面板搜 "Background" 多关键词试，不同版本入口名可能略有差异（"Background Agent" / "Cloud Agent" / "Agent"）。
   </Callout>
 
   观察了 Background Agent 的入口、并理解了"云端代理"的真实模型之后，点「我跑完了」。
@@ -335,6 +402,19 @@ Background Agent 的真实运作方式（来源：[Cursor Cloud Agent 文档](ht
   - 需要同时修改多个文件，并想逐个文件审阅改动
   - 想用 @ 快速给 AI 提供精准的文件上下文，省掉解释步骤
   - 任务耗时较长，可以交给 Background Agent 异步处理，自己去做别的
+
+  ---
+
+  <Callout type="warn" title="回顾 Ch 12 Codex 的 Git 快照纪律——同样适用于 Cursor">
+  Ch 12 §2 教过：用 `codex exec` 自动审批模式之前，先 `git add -A && git commit -m "snapshot before ..."`——这是你唯一的"撤销键"。
+
+  **这条规则对 Cursor Composer 同样成立，甚至更重要**：
+  - Composer 一次跨多个文件改动，影响面比 Codex 一次任务更大。
+  - Codex CLI 还有 `--sandbox` 标志可以限制写权限——**Cursor 没有等价的 `--sandbox`**，你的 Git 快照就是它的唯一"撤销"按钮。
+  - 改完发现 Composer 把脚本搞坏了？`git restore .` 一条命令，回到快照那一刻。没快照 = 没退路。
+
+  所以：**每次 Composer 跑批量改动前，先在终端做一次 `git add -A && git commit -m "snapshot before cursor batch"`**。养成这个肌肉记忆，三个 AI 工具都受益。
+  </Callout>
 
   ---
 
