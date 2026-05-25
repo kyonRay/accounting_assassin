@@ -1,5 +1,62 @@
 # 第 9 章 · Skills：一句话搞定重复工作
 
+## 0. 开跑前的两项自检
+
+这一章会用到 Ch 7 装好的 `aa-ocr`，也会用到 Claude Code 2.0 之后才有的 Skills 功能。两项里任何一项没满足，后面就会"看起来一切正常但其实啥都没发生"——很坑。所以我们先花 30 秒检查一下。
+
+### 自检 A：`aa-ocr` 装好了吗
+
+<RealStep
+  id="aa-ocr-installed-check"
+  command="which aa-ocr"
+>
+  Ch 7 装的 `aa-ocr` 这一章还会用到。在终端跑：
+
+  ```
+  which aa-ocr
+  ```
+
+  - **看到一行路径**（例如 `/Users/你/.local/bin/aa-ocr` 或 `/usr/local/bin/aa-ocr`）→ 装好了，往下走。
+  - **`aa-ocr not found` 或啥都没输出** → 回到 Ch 7 的「真实环境切换」步骤重新跑一遍安装流程，让 App 把 symlink 装上，再回来这一步。
+
+  > 不要用 `aa-ocr --version`——`aa-ocr` 没有 `--version` 子命令，跑了只会报"未知参数"，反而误导你以为它坏了。`which` 就够了。
+
+  确认看到一行路径之后，点「我跑完了」。
+</RealStep>
+
+### 自检 B：Claude Code 版本够新吗
+
+<RealStep
+  id="claude-version-check"
+  command="claude --version"
+>
+  Claude Code 的 **Skills 功能是 2.0 之后引入的**——旧版本的 Claude **不会报错说"Skills 不支持"**，它会**直接当你写的 SKILL.md 不存在**，你怎么调都没反应。所以先确认版本。
+
+  在终端跑：
+
+  ```
+  claude --version
+  ```
+
+  - **显示 `2.x.x` 或更高** → 没问题，往下走。
+  - **显示 `1.x.x`** → 必须升级，否则这一章后面的内容你写得再好都不会生效：
+
+    ```
+    # 如果当初是用 curl 装的:
+    ~/.local/bin/claude doctor       # 看升级建议
+    # 如果当初是用 brew 装的:
+    brew upgrade --cask claude-code
+    ```
+
+    升级完再跑一次 `claude --version` 确认是 2.x，然后点「我跑完了」。
+
+  <Callout type="warn" title="这是隐形坑">
+  Skills 在旧版 Claude 里的失败方式是**完全静默**——你说"帮我整理本月发票",Claude 会装作很懂你的样子直接动手做,但它根本没读过你的 SKILL.md。终端不会出现 `🔹 organize-invoices v1 启动` 那行启动标记,你也没法立刻意识到是版本问题。所以这一步必须先做。
+  </Callout>
+</RealStep>
+
+---
+
 ## 1. Skills 是什么
 
 <RealStep
@@ -74,17 +131,27 @@ Claude Code 会自动扫描 `~/.claude/skills/` 目录下所有子目录里的 `
 
 <RealStep
   id="skill-file-written"
-  command="mkdir -p ~/.claude/skills/organize-invoices && claude"
+  command="mkdir -p ~/.claude/skills/organize-invoices && nano ~/.claude/skills/organize-invoices/SKILL.md"
 >
-  先创建目录，然后让 Claude 帮你写 `SKILL.md`，或者直接用下面的内容手动创建。
+  **推荐做法：用 `nano` 在终端里直接创建文件。**
 
-  **方法 A（推荐）：让 Claude 帮你创建**
+  在终端里依次跑这两步——第一步建目录，第二步打开编辑器：
 
-  在终端里运行上面的命令，然后对 Claude 说：
-
+  ```bash
+  mkdir -p ~/.claude/skills/organize-invoices
+  nano ~/.claude/skills/organize-invoices/SKILL.md
   ```
-  帮我创建 ~/.claude/skills/organize-invoices/SKILL.md，内容如下：
 
+  `nano` 会全屏打开一个空文件。把下面 SKILL.md 的内容**整段复制粘贴**进去，然后:
+
+  - **Ctrl + O** → 按回车确认文件名 → **保存**
+  - **Ctrl + X** → 退出 nano
+
+  退出 nano 之后,在终端跑一句 `cat ~/.claude/skills/organize-invoices/SKILL.md` 确认内容写进去了,然后点「我跑完了」。
+
+  <Callout type="tip" title="SKILL.md 完整内容（整段复制）">
+
+  ````markdown
   ---
   name: organize-invoices
   description: 整理本月的发票PDF/图片 — OCR提取 + 按商家汇总到 Excel。适合每月初做月报前用。
@@ -96,35 +163,63 @@ Claude Code 会自动扫描 `~/.claude/skills/` 目录下所有子目录里的 `
 
   当用户说要"整理本月发票"、"做发票汇总"、"按商家汇总发票"时，使用这个 skill。
 
+  ## 「本月」的判定
+
+  - **默认按 OCR 提取的发票 `fields.date.value` 字段**(ISO 格式 `YYYY-MM-DD`)筛选当月。例如今天是 2026-05-25,就只挑 `date.value` 落在 `2026-05-01`～`2026-05-31` 的发票。
+  - **如果某张发票 `fields.date.value` 是 `null`**(`aa-ocr` 没识别出日期,常见于扫描质量低或手写发票):回退到**文件 mtime**(文件最后修改时间)来判断它属于哪个月。
+  - **跨月发票的处理**:4 月底开的发票 5 月才拿到,按 OCR `date` 走的话归 4 月(开票月),不会出现在 5 月汇总里。如果用户期望按**收到的月份**归类(账期口径),要在用户明确说明时改用 mtime 或用户输入的账期月份;否则保持开票月口径。
+
   ## 步骤
 
-  1. 先在终端打印一行启动标记，证明 Skill 已被加载：
-     `echo "🔹 organize-invoices v1 启动 — 时间 $(date '+%H:%M:%S')"`
-  2. 看 ~/accounting-learner/invoices/ 目录里所有 PDF/PNG/JPG 文件
-  3. 对每个文件用 aa-ocr <file> 命令做 OCR，得到 JSON
-  4. 解析 JSON 中的 date / vendor / amount / tax_id 字段
-  5. 按 vendor（商家）分组求和
-  6. 输出到 ~/accounting-learner/outputs/invoice_summary_organize-invoices-v1_<YYYY-MM>.xlsx
-  7. 任何 OCR 失败（exit 3）或部分字段（exit 4）的发票，单独列在"需手填"sheet 里
+  **步骤 0:检查必备目录存在**(避免第一句话就崩):
+
+  ```bash
+  if [ ! -d "$HOME/accounting-learner/invoices" ]; then
+    mkdir -p "$HOME/accounting-learner/invoices"
+  fi
+  if [ ! -d "$HOME/accounting-learner/outputs" ]; then
+    mkdir -p "$HOME/accounting-learner/outputs"
+  fi
+  ls "$HOME/accounting-learner/invoices"/*.pdf "$HOME/accounting-learner/invoices"/*.png "$HOME/accounting-learner/invoices"/*.jpg 2>/dev/null | head -1
+  ```
+
+  - 如果 `invoices/` 不存在 → 自动建一个空目录(让脚本不至于第一句话就崩)。
+  - 如果 `invoices/` 是空的 → 上面的 `ls` 会没有输出,这时 Skill 应该**报「`~/accounting-learner/invoices/` 里没有 PDF/PNG/JPG,请把发票文件放进去再跑」并退出**,不要继续往下做。
+  - 如果 `outputs/` 不存在 → 一样自动建。
+
+  **步骤 1:打印启动标记**(证明 Skill 已被加载):
+
+  ```bash
+  echo "🔹 organize-invoices v1 启动 — 时间 $(date '+%H:%M:%S')"
+  ```
+
+  **步骤 2-7:核心流程**
+
+  2. 列出 `~/accounting-learner/invoices/` 目录里所有 PDF/PNG/JPG 文件
+  3. 对每个文件用 `aa-ocr <file>` 做 OCR,拿到 JSON(注意 JSON 总是输出到 stdout,无论退出码)
+  4. 从 JSON 里解析:
+     - `fields.date.value` → 日期(可能为 null)
+     - `fields.vendor.value` → 商家
+     - `fields.amount.value` → 金额
+     - `fields.tax_id.value` → 税号
+  5. **按「本月」判定规则过滤**:`date.value` 落在当月的留下;`date.value` 为 null 的看 mtime 落在当月的也留下;其余跳过(归到「不属于本月」单独提示一下)。
+  6. 按 `vendor`(商家)分组求和,输出到 `~/accounting-learner/outputs/invoice_summary_organize-invoices-v1_<YYYY-MM>.xlsx`
+  7. 任何 OCR 失败(exit 3)或部分字段(exit 4)的发票,单独列在「需手填」sheet 里(文件名 + 已识别到的字段 + 缺失的字段标记)
 
   ## 注意
 
   - 不要修改原始发票文件
-  - 输出文件名包含 `organize-invoices-v1` 版本标记，便于以后审计是哪个版本的 Skill 生成的
-  - 中文表头：日期 / 商家 / 金额 / 税号（4 列，不要凭空生成"类目"——会计科目需要人工判断，Skill 不要乱猜）
-  ```
+  - 输出文件名包含 `organize-invoices-v1` 版本标记,便于以后审计是哪个版本的 Skill 生成的
+  - 中文表头:**日期 / 商家 / 金额 / 税号**(4 列,**不要凭空生成「类目」**——会计科目需要人工判断,Skill 不要乱猜)
+  ````
 
-  确认文件创建完成后，输入 `/exit` 退出，然后点「我跑完了」。
+  </Callout>
 
-  **方法 B：手动创建**
+  <Callout type="insight" title="为什么不用「让 Claude 帮你创建文件」的方式">
+  早期版本的这一章曾经推荐过「在 REPL 里粘贴一整段含 `---` frontmatter 的 message,让 Claude 帮你写文件」的方法。但实际跑下来,zsh 和 Claude Code REPL 对**多行粘贴 + 单引号 + `$()` + YAML 三连横杠**的处理非常容易翻车——少一个反引号、转义一个字符就让 SKILL.md 写歪,而且失败方式还不明显。
 
-  ```bash
-  mkdir -p ~/.claude/skills/organize-invoices
-  # 用你喜欢的文本编辑器（或 nano / vim）创建 SKILL.md，填入上面的内容
-  nano ~/.claude/skills/organize-invoices/SKILL.md
-  ```
-
-  保存文件后点「我跑完了」。
+  `nano` 虽然看起来"老派",但它就是最简单可靠的方式:你看到什么,文件里就是什么。把翻车风险降到 0。
+  </Callout>
 </RealStep>
 
 <Callout type="tip" title="description 是触发的关键">
