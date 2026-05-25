@@ -25,17 +25,28 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-APP="src-tauri/target/release/bundle/macos/AccountingAssassin.app"
-DMG_DIR="src-tauri/target/release/bundle/dmg"
+# This is a Cargo workspace (root Cargo.toml + aa-ocr/ + src-tauri/), so all
+# crates build to the workspace-level target/, NOT src-tauri/target/.
+# Probe workspace root first, fall back to src-tauri/ for non-workspace layouts.
 INSTALL_PDF="docs/首次安装说明.pdf"
 RELEASE_DIR="release"
 
 echo "→ pnpm tauri:build (this can take 3–10 min on first build)..."
 pnpm tauri:build
 
-if [ ! -d "$APP" ]; then
-  echo "ERROR: built .app not found at $APP" >&2
-  echo "       (tauri:build appeared to succeed but the bundle is missing — check src-tauri/target/release/bundle/)" >&2
+APP=""
+DMG_DIR=""
+for CANDIDATE in "target/release/bundle" "src-tauri/target/release/bundle"; do
+  if [ -d "${CANDIDATE}/macos/AccountingAssassin.app" ]; then
+    APP="${CANDIDATE}/macos/AccountingAssassin.app"
+    DMG_DIR="${CANDIDATE}/dmg"
+    break
+  fi
+done
+
+if [ -z "$APP" ]; then
+  echo "ERROR: built .app not found under target/release/bundle/macos/ or src-tauri/target/release/bundle/macos/" >&2
+  echo "       (tauri:build appeared to succeed but the bundle is missing)" >&2
   exit 1
 fi
 
