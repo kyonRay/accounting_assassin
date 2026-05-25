@@ -65,21 +65,21 @@ questions:
   - id: q4
     type: single-choice
     stem: |
-      课文里把英文 "harness" 翻译为"装备"。这个比喻里,"装备"具体指什么?
+      课文里说,Claude Code 是一个 "harness"(外壳 / 套件)。这个比喻里,harness 具体指什么?
     options:
       - id: A
         text: "AI 模型本身"
-        feedback: "不是。模型是'大脑',装备是另一层东西。"
+        feedback: "不是。模型是'大脑',harness 是套在大脑外面那一层。"
       - id: B
-        text: "让 AI 能读文件、跑代码、看结果再反思的那一套'工具+流程'"
-        feedback: "完全正确。装备 = AI 的眼睛、手、反思能力。"
+        text: "把模型包起来、加上读文件 / 跑代码 / 看结果 / 终端控制的那一整套程序"
+        feedback: "完全正确。harness = AI 的眼睛、手、反思能力 —— 让模型能真正动手干活的那一层。"
         correct: true
       - id: C
         text: "电脑硬件"
-        feedback: "不是。和硬件无关。"
+        feedback: "不是。和硬件无关,harness 是软件层面的东西。"
       - id: D
         text: "你的命令行终端"
-        feedback: "终端是装备的一部分,但只是其中一个壳。"
+        feedback: "终端只是 harness 的一部分外壳,不是 harness 本身。"
 
   - id: q5
     type: single-choice
