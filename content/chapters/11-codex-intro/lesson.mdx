@@ -31,6 +31,18 @@ Codex CLI 需要 ChatGPT Plus、Pro、Business、Enterprise 或 Edu 订阅才能
 
 ---
 
+## ⚠️ 用 Codex 之前必须知道的事
+
+下面这三件事不是「可选阅读」——是 10 年财务必须先想清楚的合规与数据问题。**读完再往下做安装。**
+
+**谁能用?** OpenAI 把 Codex 集成在 ChatGPT 订阅里——你需要 **ChatGPT Plus / Pro / Business / Edu / Enterprise** 中的一种(或者用 OpenAI API Key,按调用扣费)。**免费 ChatGPT 账号不能用 Codex。** 如果暂时没订阅,本章顶部的降级说明告诉你怎么用 Claude Code 走完同样的任务。
+
+**你的数据会去哪?** Codex 跑命令时,你写的提示词 + Codex 在工作目录里**读到的文件内容**(整份 CSV、整份 Excel)都会通过网络发到 OpenAI 服务器,由 OpenAI 的模型处理后再返回结果。这跟你打开浏览器把文件拖进 ChatGPT 网页是同一类行为——**不是本地推理**。
+
+**会计师必须做的事:** 真实客户姓名 / 真实税号 / 真实银行账号 / 真实身份证号,**先脱敏再喂给 Codex**。Ch 6 列过的「隐私底线清单」对 Codex 同样适用,而且更严格——因为 Codex 不仅看你贴进对话框的内容,还会主动读你让它读的文件。**本课程后面所有的演示数据都是脱敏过的假数据。** 在生产环境用 Codex 处理真实流水之前,先按 Ch 6 的清单过一遍。
+
+---
+
 ## 2. 安装 Codex CLI
 
 Codex CLI 可以通过 npm 或 Homebrew 安装，两种方式都是官方支持的。
@@ -56,16 +68,14 @@ Codex CLI 可以通过 npm 或 Homebrew 安装，两种方式都是官方支持�
 
   你会看到类似 `codex 0.x.x` 的版本号输出。
 
-  <Callout type="tip" title="npm 提示「permission denied」？">
-  如果 npm 全局安装报权限错误，尝试先用 nvm 管理 Node 版本（避免 sudo npm）：
+  <Callout type="tip" title="npm 提示「command not found」或「permission denied」?">
+  **没有装 Node**(`command not found: npm`):跑 `brew install node`(5 分钟左右),装完再回来跑 `npm install -g @openai/codex` 就行。
 
-  ```bash
-  # 如果还没安装 nvm
-  brew install nvm
-  # 然后重新运行 npm install -g @openai/codex
-  ```
+  **权限错误**(`permission denied` / `EACCES`):同样的解法——`brew install node` 装一份归你自己用户管的 Node,就不会再要 sudo。
 
-  或者直接用 Homebrew 那一行代替。
+  **不需要 nvm。** nvm 是给开发者管多个 Node 版本用的,零基础用户用 brew 装一份 Node 就够,不要被网上"先装 nvm 再装 node"的教程带偏。
+
+  装完 `brew install node` 之后,**重开一个终端窗口**再跑 `npm install -g @openai/codex`(让 shell 重新读取 PATH)。
   </Callout>
 
   看到版本号之后，点「我跑完了」。
@@ -77,12 +87,8 @@ Codex CLI 可以通过 npm 或 Homebrew 安装，两种方式都是官方支持�
 
 Codex CLI 通过你的 ChatGPT 账号来验证身份。
 
-<Callout type="warn" title="需要 ChatGPT Plus / Pro / Business / Edu / Enterprise 订阅">
-免费的 ChatGPT 账号无法使用 Codex CLI。
-
-如果你没有上述订阅，请参考本章顶部的降级说明——用 Claude Code 演示同样的任务，回头再补 Codex 部分。
-
-你也可以用 OpenAI API Key 登录（无需 ChatGPT 订阅，但需要在 platform.openai.com 充值）。真实的命令格式是先把 key 放到环境变量，再通过 stdin 传给 `codex login`：
+<Callout type="tip" title="如果你用的是 OpenAI API Key（非 ChatGPT 订阅）">
+订阅与数据流向的合规说明已经在前面的「⚠️ 用 Codex 之前必须知道的事」讲过了。这个 callout 只放技术细节:用 API Key 登录的命令格式是先把 key 放到环境变量,再通过 stdin 传给 `codex login`:
 
 ```bash
 export OPENAI_API_KEY=sk-...        # 你的 API key（一次性配置）
@@ -106,6 +112,14 @@ printenv OPENAI_API_KEY | codex login --with-api-key
   4. 回到终端，看到类似 `✓ Logged in as your@email.com` 的确认信息
 
   如果你看到的步骤略有不同，跟着屏幕提示走就好——Codex 的登录流程会随版本演进。
+
+  **怎么知道登成功了?** 终端里出现一行类似 `Logged in as <你的 email>` 或 `Successfully logged in` 的字样,且光标回到普通的 shell 提示符。**如果 5 分钟过去终端什么都没出**(既没成功也没报错),大概率是失败,按下面的几条排查。
+
+  **常见卡点 1 · 浏览器没有自动跳回:** 看终端输出,Codex 在等你登录时通常会打印一个 URL 或一段验证码。**手动复制那个 URL 到浏览器**完成登录,登成功后浏览器会显示「You can return to your terminal」之类的提示,然后回到终端会看到 `Logged in` 的消息。
+
+  **常见卡点 2 · 公司代理 / 国内网络:** Codex 登录走 OpenAI 的服务器,直连国内可能慢或断。如果终端一直显示 `Waiting for browser...` 不动,换网络试试——手机热点是最快的判断方法。如果热点能成、公司 Wi-Fi 不行,那就是网络问题不是 Codex 问题。
+
+  **常见卡点 3 · macOS 弹窗「允许访问 codex 使用 keychain」:** 第一次登录,系统会弹一个 keychain 权限框。**点「始终允许」**——Codex 把登录 token 存在 keychain 里,如果你点「只允许一次」,下次每条命令都会再弹密码框,体验很差。如果你已经点了「拒绝」: 打开「钥匙串访问」app,搜 `codex`,删掉对应条目后重跑 `codex login`,会重新弹一遍。
 
   登录成功之后，点「我跑完了」。
 </RealStep>
@@ -154,46 +168,75 @@ printenv OPENAI_API_KEY | codex login --with-api-key
 
 ### 任务背景
 
-你每月都有一份银行流水 CSV，里面几十行收支记录，每行都需要打上支出类目（餐饮、交通、快递、办公、其它）。这是会计工作里最枯燥的重复任务之一——Codex 很擅长做这类事。
+你每月都有一份银行流水 CSV——里面**既有支出也有收入**:工资、客户转账、报销、退款、利息、各类支出。每一行需要先**判断方向**(收入还是支出),收入要打上来源标签(工资/转账/退款/利息/其它收入),支出要打上类目(餐饮/交通/办公/其它)。这是会计工作里最枯燥的重复任务之一——Codex 很擅长做这类事。
+
+### 在跑命令前必须做的脱敏检查
+
+**真实银行流水里的姓名、账号、税号在喂给 Codex 之前必须脱敏**(Codex 会把整份文件传到 OpenAI 服务器,前面的合规章节讲过原因)。脱敏可以让 Claude Code 帮你做——Ch 9 教 Skills 时会演示「批量脱敏」的标准做法。
+
+**本课程下面用的全是已经脱敏的假数据**——人名是 `客户A` / `客户B`、账号是 `****1234` 这种格式。你练手的时候直接抄就行。
 
 ### 如果你还没有银行流水 CSV
 
-没关系。先让 Codex 帮你生成一份样例 CSV 用来练习：
+没关系。先让 Codex 帮你生成一份**符合真实银行流水形态**的样例 CSV(混合收支)用来练习:
 
 ```
 帮我在 outputs/ 目录下生成一个 bank_2026-04.csv 文件，
-包含 6 行样例银行流水数据，格式：日期,摘要,金额(元)
-摘要内容包含：餐厅、滴滴、京东快递、办公用品、外卖、停车费
+包含 12 行样例银行流水,格式为:
+日期,摘要,借方金额(元),贷方金额(元),方向
+
+数据要混合收支,具体覆盖:
+- 工资收入 1 笔(贷方,大额,固定日期)
+- 客户转账收入 2 笔(贷方,带"转账"/"客户X"关键词)
+- 退款收入 1 笔(贷方,带"退款"或"冲账"关键词)
+- 利息收入 1 笔(贷方,小数额,带"利息"关键词)
+- 餐饮支出 2 笔(借方,带餐厅/外卖关键词)
+- 交通支出 2 笔(借方,滴滴/打车/停车)
+- 办公支出 2 笔(借方,办公用品/打印)
+- 经费报销支出 1 笔(借方,带"报销"关键词)
+
+人名一律用「客户A」「客户B」这类脱敏写法,不要用真实姓名。
 ```
 
-生成完之后再做下面的分类任务。
+生成完打开 CSV 看一眼——这才是日常会计真正面对的样子(不是清一色支出)。
 
 ### 动手：跑分类任务
 
 <RealStep
   id="codex-first-task-tried"
-  command="cd ~/accounting-learner && codex"
+  command="mkdir -p ~/accounting-learner/outputs && cd ~/accounting-learner && codex"
 >
-  打开终端，进入工作目录启动 Codex，然后对它说：
+  打开终端,**先确保工作目录存在**(上面命令里的 `mkdir -p` 是关键——如果你跳过了 Ch 5/6,或者那个目录被删掉了,没这一步会直接报 `cd: no such file or directory`),然后启动 Codex,对它说:
 
   ```
-  帮我看看 outputs/bank_2026-04.csv，
-  按支出类目把每一行归类（餐饮/交通/快递/办公/其它），
-  输出新文件 outputs/bank_2026-04_classified.csv，
-  新文件在原有列后面增加一列「类目」
+  帮我看看 outputs/bank_2026-04.csv,
+  按以下规则处理每一行:
+    1. 先判断方向(收入/支出)——贷方金额非零是收入,借方金额非零是支出
+    2. 收入按来源打标签:工资 / 客户转账 / 退款 / 利息 / 其它收入
+    3. 支出按类目打标签:餐饮 / 交通 / 办公 / 其它
+    4. 最后给一个总结:本月收入合计 X 元、支出合计 Y 元,支出按类目分组汇总
+
+  输出新文件 outputs/bank_2026-04_classified.csv,
+  在原有列后面增加两列「方向标签」(收入/支出)和「明细类目」
   ```
 
   **观察 Codex 的工作过程**：
   - `Approve?` 询问框是不是按你预想的方式出现？回应 `y` 之后多久看到结果？
   - 工具调用（读文件、写文件）是怎么展示的？比 Claude Code 紧凑还是详细？
-  - 完成后它怎么汇报结果？是详细列表还是简短总结？
+  - 完成后它怎么汇报结果？是详细列表还是简短总结？是不是把收入和支出分开汇总了？
 
-  任务完成、看到 `bank_2026-04_classified.csv` 生成之后，输入 `/exit` 或按 `Ctrl+C` 退出，然后点「我跑完了」。
+  **任务跑完怎么退出?** **等 Codex 显示完成**(出现类似 `Done.` / `Task complete.` 或光标回到 Codex 自己的提示符)**之后,输入 `/exit` 回车退出**。然后点「我跑完了」。
+
+  <Callout type="warn" title="⚠️ 不要在 Codex 还在干活时按 Ctrl+C">
+  `Ctrl+C` 在 Codex 里的含义是「**中断当前任务**」,**不是「退出 REPL」**。如果 Codex 正在写 `bank_2026-04_classified.csv` 你按了 Ctrl+C,文件可能只写到一半就停下了——你打开会看到残缺的数据,但 Codex 已经报告说"我写完了",非常容易让会计师误以为分类结果完整。
+
+  正确做法:**等 Codex 把这一轮跑完**(看到 `Done.` 或回到 Codex 提示符) → **输入 `/exit` 优雅退出**。Ctrl+C 只用于「我等不下去想立刻打断它」这种紧急场景,而且按完之后要去检查输出文件是不是完整。
+  </Callout>
 
   <Callout type="tip" title="Codex 提示「No such file」？">
-  如果 Codex 说找不到 CSV 文件，先按上面「生成样例 CSV」的提示让它创建一份，然后再试分类任务。
+  如果 Codex 说找不到 CSV 文件,先按上面「生成样例 CSV」的提示让它创建一份,然后再试分类任务。
 
-  也可以把自己真实的银行流水 CSV（手动脱敏处理后）放到 `~/accounting-learner/outputs/` 目录里。
+  也可以把自己真实的银行流水 CSV(**先按前面讲的脱敏一遍**,真实姓名/账号去掉)放到 `~/accounting-learner/outputs/` 目录里。
   </Callout>
 </RealStep>
 
