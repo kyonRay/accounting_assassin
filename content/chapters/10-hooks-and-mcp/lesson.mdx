@@ -49,7 +49,23 @@ Ch 9 你学了 Skill——给 Claude 写一份任务说明书，让它更聪明�
 mkdir -p ~/accounting-learner/.claude
 ```
 
-**第二步**：把下面这段 JSON 写入 `~/accounting-learner/.claude/settings.local.json`：
+**第二步**：先把日志命令拆成一个独立的小脚本文件。这样 hook 配置里就不用嵌套多层引号，以后调试也只改这一个 `.sh` 文件就行。
+
+```bash
+cat > ~/accounting-learner/.claude/log-edit.sh <<'EOF'
+#!/bin/bash
+# Claude Code PostToolUse hook：把每次工具触发追加写入日志文件
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] tool triggered" >> ~/accounting-learner/.edits.log
+EOF
+chmod +x ~/accounting-learner/.claude/log-edit.sh
+```
+
+<Callout type="insight" title="为什么把命令拆成单独的脚本？">
+  Hook 的 `"command"` 字段是一段 JSON 字符串里的 shell 命令——如果你直接内联 `echo "[$(date ...)]"`，就要同时叠 JSON 转义、shell 引号、命令替换三层规则，零基础容易写错。
+  **把命令拆到 `.sh` 文件里**，hook 配置只需要调用一个路径，复杂度全部留在脚本内部。这是一条通用的工程经验：**复杂的 hook 拆成单独的脚本**。
+</Callout>
+
+**第三步**：把下面这段 JSON 写入 `~/accounting-learner/.claude/settings.local.json`：
 
 <Callout type="warn">
   如果 `.claude/settings.local.json` 已经存在其他配置（之前的章节可能写过），**只把 `"hooks": { ... }` 这部分合并进去**，不要直接覆盖整个文件。
@@ -60,11 +76,11 @@ mkdir -p ~/accounting-learner/.claude
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Edit",
+        "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"[$(date '+%Y-%m-%d %H:%M:%S')] Edit triggered\" >> ~/accounting-learner/.edits.log"
+            "command": "$HOME/accounting-learner/.claude/log-edit.sh"
           }
         ]
       }
@@ -78,13 +94,19 @@ mkdir -p ~/accounting-learner/.claude
 | 字段 | 含义 |
 |---|---|
 | `"PostToolUse"` | 事件名：Claude Code 调用完某个工具之后触发 |
-| `"matcher": "Edit"` | 只在用了 `Edit` 工具之后触发（其他工具不触发） |
+| `"matcher": "Edit\|Write\|MultiEdit"` | 三个工具都监听——见下方说明 |
 | `"type": "command"` | hook 的类型是运行 shell 命令 |
-| `"command"` | 要跑的 shell 命令：把时间戳追加写入日志文件 |
+| `"command"` | 要跑的 shell 命令：直接调用上一步建好的脚本 |
+
+<Callout type="insight" title="为什么三个 matcher 一起写？">
+  Claude 改**已有文件**用 `Edit`，创建**新文件**用 `Write`，**一次改多处**用 `MultiEdit`。  
+  如果你只写 `matcher: "Edit"`，当 Claude 创建新文件时（比如你说「在 README.md 里加一行」而 README.md 还不存在），它会走 `Write` 路径，hook 不会触发，日志里就漏了这一次。  
+  三个一起监听，日志才不会有漏网之鱼。`|` 是正则的「或」。
+</Callout>
 
 <Callout type="tip" title="为什么用 PostToolUse 而不是 PostEdit？">
-  Claude Code 的 hook 事件系统版本在持续演进。当前（2026-05）正式支持的编辑后事件是
-  `PostToolUse`，用 `matcher` 指定 `"Edit"` 来筛选编辑操作。你可以在
+  Claude Code 的 hook 事件系统版本在持续演进。当前（2026-05）正式支持的工具调用后事件是
+  `PostToolUse`，用 `matcher` 指定具体工具名来筛选。你可以在
   `~/.claude/settings.json` 里看到你已有的 hook 用的就是这个格式。
 </Callout>
 
@@ -119,14 +141,16 @@ mkdir -p ~/accounting-learner/.claude
    ```bash
    cat ~/accounting-learner/.edits.log
    # 应该出现类似：
-   # [2026-05-21 10:23:45] Edit triggered
+   # [2026-05-21 10:23:45] tool triggered
    ```
 
 <Callout type="tip" title="如果 hook 没触发">
   检查以下几点：
-  1. **JSON 语法**：用 `python3 -c "import json; json.load(open('.claude/settings.local.json'))"` 验证 JSON 格式
-  2. **启动目录**：Claude Code 必须在 `~/accounting-learner/` 目录下启动，才能读到项目级配置
-  3. **日志目录权限**：确保 `~/accounting-learner/` 目录存在且可写
+  1. **JSON 语法**：用 `jq empty ~/accounting-learner/.claude/settings.local.json` 验证。命令没有输出就说明 JSON 合法；有报错则按报错信息修正。**没装 jq**：`brew install jq`（5 秒装好，后面 Ch 15 还会用）。
+  2. **matcher 是不是只写了 `Edit`**：如果日志根本没出现新行，很可能是 Claude 走了 `Write` 路径（创建新文件时用的），而 `Edit`-only 的 matcher 抓不到。把 matcher 改成 `"Edit|Write|MultiEdit"` 后再试。
+  3. **脚本可执行**：`ls -l ~/accounting-learner/.claude/log-edit.sh` 应该看到 `-rwxr-xr-x`（带 `x` 表示可执行）。少了 `x` 就再跑一次 `chmod +x ~/accounting-learner/.claude/log-edit.sh`。
+  4. **启动目录**：Claude Code 必须在 `~/accounting-learner/` 目录下启动，才能读到项目级配置。
+  5. **日志目录权限**：确保 `~/accounting-learner/` 目录存在且可写。
 </Callout>
 
 ---
@@ -175,7 +199,16 @@ claude mcp add sqlite-db -s user -- uvx mcp-server-sqlite --db-path "$HOME/accou
   `$HOME` 是 macOS 和 Linux 自带的环境变量，会自动展开成你当前用户的 home 目录（比如 `/Users/zhangsan`）。**你不用替换它，直接复制粘贴上面的命令就行**。如果你写 `/Users/你的用户名` 那种字面量，shell 会把它当成真的目录名找不到。
 </Callout>
 
-**验证安装**：
+### 装完必须重启 `claude` 会话，新 MCP server 才会加载
+
+**这是最容易踩的坑**。`claude mcp add` 只是把配置写入 `~/.claude.json`——当前正在运行的 `claude` 会话**不会**自动重新读取这份配置。如果你不重启，`claude mcp list` 可能在旧会话里仍然显示空白，让你误以为安装失败、白白排查半天。
+
+**怎么做**：
+
+1. 如果你现在还在 `claude` 会话里，输入 `/exit` 退出（或者按两次 `Ctrl+C`），回到普通终端。
+2. 在普通终端里再跑一次 `claude` 重新进入会话。
+
+**验证**：
 
 ```bash
 claude mcp list
@@ -183,15 +216,18 @@ claude mcp list
 # sqlite-db: uvx mcp-server-sqlite --db-path /Users/你的用户名/accounting-learner/accounting.db - ✓ Connected
 ```
 
-如果状态不是 `✓ Connected`：
+——必须同时看到打勾 (`✓`) 和 `Connected`。
 
-- 数据库文件还不存在？这是下一节的事，先建好 `accounting.db` 再回头看（也可以先 `touch ~/accounting-learner/accounting.db` 让文件占位）
-- 看不到 `sqlite-db` 这一行？可能 `claude mcp add` 报错了——往回看终端是否有红色错误提示，或者重跑一次 `claude mcp add ...`
-- 想撤销重来：`claude mcp remove sqlite-db -s user`
+**如果还看不到正确状态**：
+
+- 看到 `sqlite-db ✗`（叉）：server 启动失败。仔细看 `claude mcp list` 输出的错误信息——多半是 `uvx` 没装、或者第一次拉取 `mcp-server-sqlite` 时网络问题。先 `uvx mcp-server-sqlite --help` 单独跑一次验证子进程能起来。
+- 根本没列出 `sqlite-db` 这一行：说明 `claude mcp add` 这一步没成功——回到上面那条命令，确认你**确实**敲完了整行、`--` 前后没漏空格，然后重跑一次。
+- 数据库文件还不存在：是下一节的事。先 `touch ~/accounting-learner/accounting.db` 让文件占位，再回头看状态。
+- 想撤销重来：`claude mcp remove sqlite-db -s user`，然后从头跑 `claude mcp add`。
 
 <Callout type="tip" title="uvx 是什么？">
   `uvx` 是 `uv` 提供的命令，功能类似 `npx`：它临时下载并运行一个 Python 包，不需要手动
-  `pip install`。`mcp-server-sqlite` 就是 Anthropic 官方维护的 SQLite MCP 服务器包。
+  `pip install`。`mcp-server-sqlite` 是 **Anthropic 的官方参考实现，但 Python 版已经停止活跃更新，现在更多是社区在维护**——对入门教学完全够用，只是别把它当作长期生产依赖。
 </Callout>
 
 <Callout type="insight" title="配置文件在哪？（好奇的同学可以看）">
@@ -211,25 +247,32 @@ claude mcp list
 
 ### 准备一个示例数据库
 
-先创建一个有发票数据的 SQLite 数据库：
+模拟你日常处理的**进项发票台账**——包含供应商、发票号、开票日期、含税金额、税额、不含税金额：
 
 ```bash
 cd ~/accounting-learner
 sqlite3 accounting.db << 'SQL'
-CREATE TABLE IF NOT EXISTS invoices (
+CREATE TABLE IF NOT EXISTS input_invoices (
   id INTEGER PRIMARY KEY,
-  date TEXT,
-  vendor TEXT,
-  amount REAL,
-  category TEXT
+  invoice_no TEXT,           -- 发票号码
+  invoice_date TEXT,         -- 开票日期
+  vendor TEXT,               -- 供应商
+  category TEXT,             -- 业务类别
+  amount_incl_tax REAL,      -- 含税金额（价税合计）
+  tax_amount REAL,           -- 税额
+  amount_excl_tax REAL       -- 不含税金额
 );
-INSERT INTO invoices VALUES
-  (1, '2026-05-01', '顺丰速运', 280.00, '快递'),
-  (2, '2026-05-03', '盒马鲜生', 156.50, '餐饮'),
-  (3, '2026-05-08', '顺丰速运', 95.00, '快递'),
-  (4, '2026-05-12', '滴滴出行', 42.00, '交通'),
-  (5, '2026-05-15', '盒马鲜生', 230.00, '餐饮'),
-  (6, '2026-05-20', '京东物流', 180.00, '快递');
+INSERT INTO input_invoices VALUES
+  (1,  '04412800000123456701', '2026-05-02', '上海远洋物流有限公司',     '物流运输', 12450.00,  831.51, 11618.49),
+  (2,  '04412800000123456702', '2026-05-04', '北京中关村办公用品有限公司', '办公用品',  3286.00,  377.74,  2908.26),
+  (3,  '04412800000123456703', '2026-05-05', '阿里云计算有限公司',         '云服务',   28800.00, 1629.25, 27170.75),
+  (4,  '04412800000123456704', '2026-05-08', '上海远洋物流有限公司',       '物流运输',  8762.50,  585.21,  8177.29),
+  (5,  '04412800000123456705', '2026-05-10', '中国移动通信集团上海有限公司', '通讯服务', 4600.00,  260.38,  4339.62),
+  (6,  '04412800000123456706', '2026-05-13', '锦江国际酒店股份有限公司',   '差旅住宿',  6320.00,  357.74,  5962.26),
+  (7,  '04412800000123456707', '2026-05-15', '上海德勤管理咨询有限公司',   '专业服务', 53000.00, 3000.00, 50000.00),
+  (8,  '04412800000123456708', '2026-05-18', '北京中关村办公用品有限公司', '办公用品',  1890.00,  217.26,  1672.74),
+  (9,  '04412800000123456709', '2026-05-20', '阿里云计算有限公司',         '云服务',    9600.00,  543.08,  9056.92),
+  (10, '04412800000123456710', '2026-05-22', '顺丰速运（集团）有限公司',   '物流运输',  4280.00,  285.87,  3994.13);
 SQL
 echo "数据库创建完成"
 ```
@@ -244,20 +287,23 @@ claude
 然后对 Claude 说：
 
 ```
-查一下本月发票按类目的总金额，从高到低排列
+按供应商汇总本月进项税额，并按金额从大到小排序
 ```
 
 正常情况下，Claude 会调用 SQLite MCP 的 `query` 工具，运行类似这样的 SQL：
 
 ```sql
-SELECT category, SUM(amount) AS total
-FROM invoices
-WHERE date LIKE '2026-05-%'
-GROUP BY category
-ORDER BY total DESC;
+SELECT vendor,
+       SUM(tax_amount)       AS total_tax,
+       SUM(amount_excl_tax)  AS total_amount_excl_tax,
+       COUNT(*)              AS invoice_count
+FROM input_invoices
+WHERE invoice_date LIKE '2026-05-%'
+GROUP BY vendor
+ORDER BY total_tax DESC;
 ```
 
-并返回结果表格。
+并返回结果表格——这正是你做月度进项税认证、和会计师事务所对账时的常用视角。
 
 <Callout type="warn" title="MCP 是 Claude 调用的工具，不是任意 SQL 执行器">
   MCP 让 Claude 代表你查询数据库——但你的请求是否合理，**你自己把关**。  

@@ -11,7 +11,7 @@ questions:
         feedback: "Skill 用于多步重复工作流，需要你主动触发。这里你想要的是「每次编辑就自动跑」——那是 Hook 的职责。"
       - id: B
         text: "Hook——在 settings.local.json 里配置 PostToolUse 触发 shell 命令"
-        feedback: "完全正确！PostToolUse hook 加 matcher: \"Edit\"，每次 Claude 用 Edit 工具后就自动跑你的 shell 命令。"
+        feedback: "完全正确！PostToolUse hook 加 matcher: \"Edit|Write|MultiEdit\"，每次 Claude 用这些写入类工具后就自动跑你的 shell 命令（三个一起监听，新建文件走 Write 路径也能抓到）。"
         correct: true
       - id: C
         text: "MCP——安装一个文件日志 MCP 服务器"
@@ -27,7 +27,7 @@ questions:
     options:
       - id: A
         text: "每次 Claude 编辑完代码文件后，自动运行一次 eslint 检查"
-        feedback: "这非常适合 Hook——PostToolUse + matcher: \"Edit\"，每次编辑后自动触发 lint。"
+        feedback: "这非常适合 Hook——PostToolUse + matcher: \"Edit|Write|MultiEdit\"，每次写入类操作后自动触发 lint。"
       - id: B
         text: "只做一次的统计：统计本月发票里金额超过 1000 元的有多少张"
         feedback: "正确。一次性任务直接问 Claude 就好，不值得配置 Hook。Hook 是给「每次某事发生就要做」的机械动作用的，不是一次性任务。"
