@@ -67,6 +67,11 @@ invoices-2026-12.csv
   - 🔧 **List files** 看当前目录有哪些 CSV 文件
   - 🔧 **Read** 一个文件确认列名结构
   - ✍️  **写出**下面这段 Python 脚本
+
+  <Callout type="note" title="为什么 AI 一定要先 List + Read 一个文件,而不是直接写脚本?">
+  因为只有看过真实文件,AI 才知道**列名到底叫什么** —— 是 `category` 还是 `类目`?是 `amount` 还是 `金额`?猜错一个字,脚本就会在你跑的时候报 `KeyError: '类目'`,然后你得返工。
+  让 AI 先 Read 一行确认列名,等于让它**用你的真实数据校准过**再写代码,大幅减少"代码看着像对,跑起来报错"的尴尬。
+  </Callout>
 </SandboxStep>
 
 ---
@@ -118,6 +123,11 @@ for cat in sorted(totals):
 **你不需要记这些细节** —— 只要知道:看到 AI 写出 `Decimal` 而不是 `float` 处理金钱时,它是对的;反过来,看到它写 `float` 处理金钱,你可以提醒它换成 `Decimal`。
 </Callout>
 
+<Callout type="warning" title="真实环境里这段脚本最常见的两个报错(沙箱里 fixture 已避开,Ch 5 之后会遇到)">
+- **`FileNotFoundError: invoices-2026-01.csv`** → 当前工作目录不对,或者 CSV 文件根本不在那。让 AI 先跑 `import os; print(os.getcwd()); print(os.listdir('.'))` 确认它实际在哪个目录、能看到哪些文件。
+- **`KeyError: '类目'` / `KeyError: 'category'`** → CSV 第一行的列名跟脚本对不上(中英文混了,或多了空格)。让 AI 跑 `print(next(csv.DictReader(open(paths[0]))).keys())` 看实际列名,再把脚本里的 `row["category"]` 换成真实那个字。
+</Callout>
+
 ---
 
 ## 第二步：看沙箱跑出 12 个月的汇总
@@ -153,6 +163,17 @@ for cat in sorted(totals):
 **你不需要再求 AI 第二次。**
 </Callout>
 
+<Callout type="note" title="先说清楚:这段脚本现在存在哪里?">
+**这是沙箱演示** —— 脚本只活在你这一章的浏览器内存里,关掉这一章它就消失了,沙箱不能像真实电脑一样长期保存文件。
+
+那"以后怎么再用"怎么办?分两步:
+
+1. **现在(沙箱里)**:把上面那段 Python 代码 **完整复制** 到本地的记事本 / Notion / 微信文件传输助手里留个底。等你 12 个月后想再跑,至少有的拷。
+2. **等到 Ch 5(装好真实环境后)**:你会把它正式存到 `~/accounting-learner/scripts/monthly-summary.py` —— 一个有名字、有路径、能反复打开的真实文件。以后每月就靠这个文件复跑,不用每次都重新找。
+
+**现在你只需要看明白一件事**:同一段脚本,跑 N 次,每次喂不同的月份数据。文件存哪、怎么命名,Ch 5 真实环境里再细学。
+</Callout>
+
 这就是本章标题"从一次性帮忙到重复可用"的含义：
 
 - **一次性帮忙**：Ch 1-3 里 AI 每次帮你算一个问题
@@ -176,6 +197,11 @@ for cat in sorted(totals):
   沙箱已经模拟好了这个场景：你会看到 **同一段脚本(一字未改)** 读了 `invoices-2027-01.csv`,并因为只找到 1 个月文件而打印出"⚠️ 只找到 1 个月,期待 12 个"的告警 —— 这正是 AI 写代码时应当帮你显式 check 的关键不变量。
 
   **这就是脚本复用的 lived experience。**
+
+  <Callout type="warning" title="如果跑完输出是空白 / 一行没出来,先看这两个地方">
+  - **缺月告警里报"找到 0 个月"** → glob 模式没匹上任何文件。十有八九是文件名前缀或年份不对(比如文件叫 `2027-01-invoices.csv` 而不是 `invoices-2027-01.csv`),改文件名比改脚本快。
+  - **缺月告警没出来,但类目行也是空的** → CSV 文件存在,但里面没数据行(只有表头)。打开 CSV 拿 Excel 看一眼是不是真有交易记录。
+  </Callout>
 </SandboxStep>
 
 ---

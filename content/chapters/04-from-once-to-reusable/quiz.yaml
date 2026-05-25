@@ -30,8 +30,8 @@ questions:
         text: "再问 AI 一次,把 2 月的文件给它"
         feedback: "这又回到了 Ch 1 的'依赖 AI 当次答案'模式。脚本就是为了避免这个。"
       - id: B
-        text: "翻 Claude Code 的工作日志找到 1 月的脚本,自己换个文件名再跑"
-        feedback: "完全正确。脚本是 AI 留下来的'你的工具',你之后自己用。"
+        text: "把 AI 写出的那段脚本完整复制下来留底,2 月直接拿同一段脚本再跑一次(沙箱里就是回到同一个 SandboxStep 再点一次'我做完了')"
+        feedback: "完全正确。脚本是 AI 留下来的'你的工具',你之后自己用 —— 不再依赖 AI 当次的回答。"
         correct: true
       - id: C
         text: "把 2 月数据复制粘贴进 ChatGPT,让它算"
@@ -46,8 +46,8 @@ questions:
       下面哪些做法体现了"AI 写工具,你用工具"的心智?(可多选)
     options:
       - id: A
-        text: "把 AI 给的代码存到 ~/scripts/ 下,以后按需调用"
-        feedback: "正确 —— 这就是把'当次答复'变成'你的工具'。"
+        text: "把 AI 写出的代码完整复制下来,粘到本地记事本/Notion 里留底(等 Ch 5 装好真实环境后,再正式存成 .py 文件)"
+        feedback: "正确 —— 这就是把'当次答复'变成'你的工具'。沙箱里只能先复制留底,等 Part II 学会真实文件系统再正式归档。"
         correct: true
       - id: B
         text: "每次有新需求都重新让 AI 写一遍代码"
@@ -58,7 +58,7 @@ questions:
         correct: true
       - id: D
         text: "把脚本测试一遍后,设个定时任务让它每月自动跑"
-        feedback: "正确 —— 这是工具化的进一步。"
+        feedback: "正确 —— 因为脚本里用的是 `datetime.now().year` 而不是写死 2026,跨年时它会自动跟着系统日期走,定时任务跑过年也不会爆。这是工具化的进一步。"
         correct: true
 
   - id: q4
