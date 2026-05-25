@@ -210,7 +210,28 @@ git diff            # 看每个文件改了哪些行
 git restore .
 ```
 
-这个命令把所有未提交的修改全部撤销，回到上一次 `git commit` 时的状态。
+这个命令把工作区（working tree）里所有未提交的修改全部撤销，回到上一次 `git commit` 时的状态。
+
+<Callout type="warn" title="⚠️ 注意：git restore . 默认不动 staged 的修改">
+**`git restore .` 默认只回滚工作区（working tree），不动 staged（已经被 `git add` 加进暂存区）的修改。**
+
+本章工作流恰好会撞上「已经 `git add` 但还没 `git commit`」的场景 —— 比如你做完事前快照 `git add -A` 之后没立刻 `commit`，又让 AI 改了一轮。
+
+**怎么知道自己撞上了 staged-but-not-committed？** 跑 `git status`，看到 `Changes to be committed:` 那块下面有东西，就是 staged 了。
+
+**两种都要回滚时，用这条：**
+
+```bash
+git restore --staged --worktree .
+```
+
+或者更直观地分两步跑（更容易看清自己在干什么）：
+
+```bash
+git restore --staged .   # 把已 add 的撤回到工作区
+git restore .            # 再把工作区里的修改撤销
+```
+</Callout>
 
 如果 AI 还创建了新文件，用交互式 `git clean` 来选择性删除：
 
@@ -283,25 +304,50 @@ git clean -i
 
 ### 动手步骤
 
-**第一步：把练习文件复制到你的工作目录**
+<Callout type="tip" title="第一次跑 pandas / openpyxl？先装一下">
+本章后面会用到 pandas 和 openpyxl。如果你之前没装过，先在终端里跑：
 
 ```bash
-cp ~/Library/Application\ Support/AccountingAssassin/fixtures/bad_encoding.csv \
-   ~/accounting-learner/invoices/bad_encoding.csv
+python3 -m pip install --user pandas openpyxl
 ```
 
-如果找不到这个路径，也可以用 Python 直接生成：
+> **为什么用 `python3 -m pip` 而不是 `pip3`？** 这是为了避免 `pip3` 和 `python3` 指向不同位置导致「装了但找不到」的问题（Ch 14 会详讲）。
+
+**如果脚本后面报 `ModuleNotFoundError: No module named 'pandas'`**（或 `openpyxl`）→ 就是上面这条没跑成功，回来跑一遍再继续。
+</Callout>
+
+**第一步：生成一个"故意 GBK 编码"的练习文件**
+
+我们用 Python 给你生成一个故意 GBK 编码的 CSV，模拟从老版 ERP / WPS Excel 导出的乱码场景。把下面这段直接粘到终端里跑：
 
 ```bash
 python3 - << 'EOF'
-import os
-content = '类目,金额,日期,备注\n办公用品,120.00,2025-01-15,打印纸\n交通费,380.50,2025-01-20,出差火车票\n'
-path = os.path.join(os.path.expanduser("~"), "accounting-learner", "invoices", "bad_encoding.csv")
-with open(path, 'wb') as f:
-    f.write(content.encode('gbk'))
-print('文件已生成')
+from pathlib import Path
+import csv
+
+target = Path.home() / "accounting-learner" / "invoices" / "bad_encoding.csv"
+target.parent.mkdir(parents=True, exist_ok=True)
+
+# Bad-encoding fixture: GBK-encoded Chinese vendor names
+rows = [
+    ["2026-05-01", "中国移动", "150.00"],
+    ["2026-05-15", "顺丰速运", "38.00"],
+    ["2026-05-22", "上海某某商贸", "1234.50"],
+]
+with open(target, "w", encoding="gbk", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["date", "vendor", "amount"])
+    writer.writerows(rows)
+
+print(f"已生成: {target}")
 EOF
 ```
+
+这段做了三件事：
+
+1. `target.parent.mkdir(parents=True, exist_ok=True)` —— 确保 `~/accounting-learner/invoices/` 目录存在（如果你跳过了 Ch 7，这个目录可能还没建过）
+2. `encoding="gbk"` —— 故意用 GBK 编码写入，模拟"从 Windows / WPS 导出"的常见乱码场景
+3. 打印最终路径，方便你确认文件确实生成了
 
 **第二步：写一个故意用错编码的脚本**
 
@@ -322,8 +368,11 @@ Claude 会写一个默认用 UTF-8 读取的脚本。
 **第三步：运行，让它报错**
 
 ```bash
-python3 ~/accounting-learner/scripts/read_expenses.py
+cd ~/accounting-learner
+python3 scripts/read_expenses.py
 ```
+
+> **先 `cd` 到工作目录** —— 脚本里写的是相对路径 `invoices/bad_encoding.csv`。如果你在错的目录跑，会先撞 `FileNotFoundError`，反而看不到我们想教的「编码 bug」。
 
 你应该会看到类似这样的报错：
 
@@ -348,7 +397,7 @@ UnicodeDecodeError: 'utf-8' codec can't decode byte 0xb7 in position 6: invalid 
 
 <RealStep
   id="exercise-1-encoding-fixed"
-  command="python3 ~/accounting-learner/scripts/read_expenses.py"
+  command="cd ~/accounting-learner && python3 scripts/read_expenses.py"
 >
   按照上面的步骤，完成从「报错」到「修复验证」的完整流程。
 
@@ -491,10 +540,25 @@ cd ~/accounting-learner && git add scripts/simple_sum.py && git commit -m "add s
 **第三步：发现脚本跑不了了**
 
 ```bash
-python3 ~/accounting-learner/scripts/simple_sum.py
+cd ~/accounting-learner
+python3 scripts/simple_sum.py
 ```
 
-如果报错（很可能报 IndentationError 或 SyntaxError），不要慌。
+<Callout type="tip" title="实际情况：30 行的累加脚本几乎不会真报语法错">
+**实际情况：** 30 行的 CSV 累加脚本几乎不会真报 IndentationError —— Claude 写代码相当稳。所以你**大概率不会撞上语法错**，反而看到的是「脚本竟然还能跑」。
+
+**那怎么练「撞 bug」？** 跟 Claude 说：
+
+```
+这段脚本太简单了，帮我加复杂功能 ——
+加按类目分组、加百分比、加 Excel 输出、加错误处理、加命令行参数 ...
+一直加到你自己写出 bug 为止，然后告诉我哪里坏了。
+```
+
+**这才是本章的核心练习：** 不是被动等 bug 自然来，而是主动把脚本喂复杂到 AI 都搞不定 —— 让你练习「卡住后怎么办」，而不是「没卡住时假装卡住」。
+
+如果加到某一轮脚本真的跑不动了（不管是报错还是输出错），就接着往下走第四步。
+</Callout>
 
 **第四步：检查发生了什么**
 
