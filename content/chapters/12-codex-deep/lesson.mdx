@@ -174,6 +174,16 @@ codex exec --sandbox workspace-write "你的任务描述"
 如果你不确定自己安装的版本支持哪些选项，运行 `codex --help` 查看完整列表。
 </Callout>
 
+<Callout type="insight" title="更推荐的做法：先 codex 进交互模式，再粘 prompt">
+**不用 `codex exec` 一行命令塞 prompt，而是先 `codex` 进交互模式，再粘贴 prompt。**
+
+**好处：** 你能看到 Codex 在做什么、随时按 Ctrl+C 中断、prompt 改起来不用纠结引号转义（中文引号 / 嵌套引号 / 多行换行在一行命令里都是地狱）。
+
+**`codex exec` 适合场景：** 写到脚本里、cron 调度、CI/CD 触发。**临时手动跑就用交互式。**
+
+下面那条 `codex exec ...` 命令保留作为参考，让你看到非交互式的完整形态——但首次手动跑，强烈建议先 `codex` 进 REPL，再把任务描述粘进去。
+</Callout>
+
 <RealStep
   id="auto-approve-tried"
   expectsCli="Codex"
@@ -184,7 +194,7 @@ codex exec --sandbox workspace-write "你的任务描述"
   **你会观察到和 Ch 11 完全不同的执行方式**：
 
   - Codex **不会弹出确认框**——它直接开始读文件、处理、写文件
-  - 多个文件可能**并行处理**——Codex 会同时派出多个子任务，分别处理不同文件
+  - **Codex 按它自己的节奏顺序处理 —— 中间不需要你介入。** 实际行为是单会话顺序执行:Codex 读一个文件 → 处理 → 写输出 → 读下一个。**不是多 agent 并行**(那是 Claude Subagents 或 Codex Cloud Workers 的能力,本章不涉及)。你看到终端滚动很快,以为是并行,其实是顺序但快。
   - 等待期间你只需要看着——没有任何操作需要你来批准
   - 完成后 Codex 会给你一份汇报：处理了哪些文件、创建了哪些输出
 
@@ -197,9 +207,16 @@ codex exec --sandbox workspace-write "你的任务描述"
 
   用 `ls` 确认输出文件都生成了之后，点「我跑完了」。
 
-  <Callout type="tip" title="如果 Codex 报错「找不到文件」">
-  确保你在 `~/accounting-learner` 目录下运行命令（不是在 `~` 根目录）。  
-  Codex 用相对路径 `data/raw/` 定位文件，工作目录不对会找不到。
+  <Callout type="tip" title="跑批量时常见的 5 类问题">
+
+  | 现象 | 原因 | 处理 |
+  |---|---|---|
+  | `cd: no such file or directory` | cwd 不对 | `cd ~/accounting-learner` 后重跑 |
+  | Codex 跑了一半挂掉，部分文件已经处理 | 网络断 / Codex 抽风 | 看 `outputs/` 哪些有（按 mtime），`git status` 看哪些代码动过；`git restore .` 回滚后从中断处重启，prompt 加 `从 file_NN.csv 开始重跑` |
+  | `not logged in` 或 `subscription required` | Codex 登录过期 / 订阅没了 | `codex login` 重登；订阅过期参考 Ch 11 顶部「用 Codex 之前必须知道的事」 |
+  | `Please tell me who you are`（git commit 错） | 没设 git user.name / user.email | `git config --global user.email "you@example.com" && git config --global user.name "你的名字"` |
+  | AI 跑完了，怎么核对？ | 没法肉眼一行行看 | 让 Claude 跑一个 sanity check：`读 outputs/ 下所有文件，产 JSON 报告：总行数、各类目笔数、最大金额 top 5、可疑值。` 和 Ch 14 的 AI 校验同款。 |
+
   </Callout>
 </RealStep>
 
@@ -221,11 +238,13 @@ codex exec --sandbox workspace-write "你的任务描述"
   `codex exec` 对文件的修改是不可撤销的——除非你有 Git 快照。  
   每次批量任务之前，先 `git commit`。出了问题，`git restore .` 一条命令完全恢复。
 
+  > **`git restore .` + `git clean -i` 在 Ch 8 详讲过了**（`git restore .` 回滚已追踪文件的修改，`git clean -i` 交互式删除未追踪的新文件）。本章规则一就是 Ch 8 那套「后悔药」工作流的 Codex 版本——这里不重复教学，只交叉链接。
+
   参考 **Ch 8** 教过的这个工作流，**再加上本章开头的 `.gitignore` 前置步骤**：
   - 一次性准备 → `.gitignore` 里写好 `data/raw/` `data/classified/` `outputs/` `*.csv` `*.xlsx`，单独提交一次
   - 批量跑之前 → `git add -A && git commit -m "snapshot before batch run"`（此时只会收录代码，不会收录真实数据）
-  - 出了问题 → `git restore .` （撤销所有未提交修改）
-  - 如果还创建了新文件 → `git clean -i`（交互式逐一确认删除）
+  - 出了问题 → `git restore .`（撤销所有未提交修改，Ch 8 §3）
+  - 如果还创建了新文件 → `git clean -i`（交互式逐一确认删除，Ch 8 §4）
 
   ---
 
