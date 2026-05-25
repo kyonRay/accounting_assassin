@@ -17,7 +17,7 @@
 
 ## 2. 装 Homebrew——Mac 的"应用商店"命令行版
 
-Homebrew 是 macOS 上最流行的包管理器。它让你可以用一行命令安装 Python、Git、Claude Code 等工具，而不是到各家网站手动下载安装包。
+Homebrew 是 macOS 上最流行的包管理器。它让你可以用一行命令安装 Python、Git、Claude Code 等工具，而不是到各家网站手动下载安装包。**下面要装的 Python / Git / Claude Code 都靠它来管。**
 
 安装之前，打开终端：`Launchpad → 其他 → 终端`，或按 `⌘ + 空格` 输入 "Terminal" 回车。
 
@@ -32,7 +32,16 @@ Homebrew 是 macOS 上最流行的包管理器。它让你可以用一行命令�
   输入开机密码，它不会在屏幕上显示字符，这也是正常的。
 
   安装结束后你会看到类似 `==> Installation successful!` 的提示。
+
+  **如果「我跑完了」按钮按不动**：装完之后新开一个终端窗口（`Command + T`，或者关掉终端再开一次），或者在当前窗口里跑 `source ~/.zshrc`，然后再回到这里点。这是因为新装的命令要等 Shell 重新加载 PATH 才能被认出来，不是出错。
 </RealStep>
+
+<Callout type="warn" title="装的过程中可能会出现这些情况">
+- 终端最下面一行变成 `Password:` → 输入电脑开机密码（屏幕上不会显示星号或任何字符，但你照常打字 + 回车就行）
+- 弹出 **"安装 Command Line Developer Tools"** 窗口 → 点"安装"，等 5–15 分钟，装完回到终端继续。如果中途按了取消，重新跑一次安装命令即可
+- 进度条停在 `Cloning into 'homebrew-core'...` 超过 5 分钟 → 大概率是网络问题，看下面那个中国镜像 Callout
+- 中途出现 `Press RETURN/ENTER to continue` 之类的提示 → 按一下回车继续即可
+</Callout>
 
 <Callout type="warn" title="Apple Silicon vs Intel：PATH 可能需要手动加">
 如果装完后新开一个终端窗口输入 `brew` 显示"command not found"，是因为 Apple Silicon（M 系列芯片）的 Homebrew 安装在 `/opt/homebrew/bin/`，而你的 Shell 配置文件还不知道去那里找。
@@ -42,6 +51,8 @@ Homebrew 是 macOS 上最流行的包管理器。它让你可以用一行命令�
 echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
 source ~/.zprofile
 ```
+
+`~/.zprofile` 是 macOS 终端启动时自动读的一个**配置文件**，你之前可能没接触过——它记录了终端打开时要做哪些准备动作。中间那个 `>>` 是"把后面这串追加到这个文件末尾"的意思，**不会覆盖**文件里已有的内容。第二行 `source` 是"立刻把刚才追加的那行执行一遍"，让当前这个终端窗口马上生效（不用重开）。
 
 之后再试 `brew --version`，应该能看到版本号了。
 Intel Mac 的 Homebrew 在 `/usr/local/bin/`，通常不需要这一步。
@@ -72,7 +83,7 @@ brew update
 
 ## 3. 装 Python
 
-Python 是本课后半段的主要工具——Claude Code 会帮你写 Python 脚本来处理发票和报表。你不需要会写 Python，但你的电脑需要安装它来跑脚本。
+Python 是本课后半段的主要工具——**第 7 章你会用 Python 自动处理发票月报**（把一摞发票 PDF 提取成 Excel），所以现在先把 Python 装好。你不需要会写 Python，Claude Code 会帮你写脚本，你的电脑只需要装好 Python 来跑这些脚本。
 
 <RealStep
   id="python-installed"
@@ -86,17 +97,19 @@ Python 是本课后半段的主要工具——Claude Code 会帮你写 Python �
   python3 --version
   ```
   你会看到类似 `Python 3.13.x` 的输出。
+
+  **如果「我跑完了」按钮按不动**：新开一个终端窗口，或者在当前窗口跑 `source ~/.zshrc`，然后回来再点。这步同上——Shell 需要重新加载一下才能找到刚装的 `python3`。
 </RealStep>
 
 <Callout type="tip" title="为什么是 python3 而不是 python？">
-在 macOS 上，`python` 命令可能指向系统自带的 Python 2（已经很老了），而 `python3` 才是你刚装的新版本。本课所有脚本都用 `python3` 开头。
+新版 macOS 上 `python`（不带数字）通常**不存在**，或者指向你自己之前装的某个版本。本课程统一用 `python3` 这个名字——你跟 AI 对话、自己写脚本、看本应用里的示例命令，统统都用 `python3`，不会混。
 </Callout>
 
 ---
 
 ## 4. 装 Git
 
-Git 是版本控制工具——它记录你的文件每次修改了什么，让你能随时"回到过去"。Claude Code 内部也依赖 Git 来管理代码变更。
+Git 是版本控制工具——它记录你的文件每次修改了什么，让你能随时"回到过去"。**第 8 章你会用它来做"撤销"按钮（AI 改坏文件后的后悔药）**，所以现在先把它装好。Claude Code 内部也依赖 Git 来管理代码变更。
 
 <RealStep
   id="git-installed"
@@ -110,6 +123,8 @@ Git 是版本控制工具——它记录你的文件每次修改了什么，让�
   git --version
   ```
   应该看到 `git version 2.x.x`。
+
+  **如果「我跑完了」按钮按不动**：新开一个终端窗口，或者在当前窗口跑 `source ~/.zshrc`，然后回来再点。
 </RealStep>
 
 <Callout type="tip" title="macOS 自带 git？">
@@ -120,7 +135,7 @@ macOS 确实预装了一个 Git，但版本比较老，而且依赖 Xcode Comman
 
 ## 5. 装 Claude Code
 
-Claude Code 是本课的核心工具。它是一个命令行界面（CLI），让你在终端里直接与 Claude 对话，同时让 Claude 能读你的文件、跑你的代码。
+Claude Code 是本课的核心工具。它是一个命令行界面（CLI），让你在终端里直接与 Claude 对话，同时让 Claude 能读你的文件、跑你的代码。**这是你接下来 10 章的主力 AI 同事，装好之后第 6 章就要第一次跟它说话了。**
 
 <RealStep
   id="claude-installed"
@@ -136,10 +151,18 @@ Claude Code 是本课的核心工具。它是一个命令行界面（CLI），�
   claude --version
   ```
   你会看到类似 `2.0.x (Claude Code)` 这样单行的输出。版本号会随更新变化,只要看到这一行就算装好。
+
+  **如果「我跑完了」按钮按不动**：新开一个终端窗口，或者在当前窗口跑 `source ~/.zshrc`，然后回来再点。
 </RealStep>
 
-<Callout type="tip" title="其他安装方式">
-官方推荐的 curl 脚本是最简单的方式，安装后还会自动在后台更新。如果你遇到网络问题，也可以用下面的方法：
+<Callout type="warn" title="装上一种就别再试另一种">
+下面列了两种"其他安装方式"。**只要上面的 `curl` 脚本装成功（`claude --version` 能看到版本号），就停下，别再去跑下面的 brew 或 npm 命令。**
+
+原因：curl 脚本装出来的 `claude` 在 `~/.local/bin/claude`，brew cask 装出来的在 `/opt/homebrew/bin/claude`——两个路径不一样，两种都跑会在你电脑上装出两份 Claude Code，以后升级时容易升错那一份，出问题也不好排查。
+</Callout>
+
+<Callout type="tip" title="其他安装方式（只在上面那条 curl 失败时用）">
+官方推荐的 curl 脚本是最简单的方式，安装后还会自动在后台更新。如果你遇到网络问题，也可以用下面的方法（**二选一，不要都跑**）：
 
 - **Homebrew**（你刚才已经装好了，直接可用）：
   ```
