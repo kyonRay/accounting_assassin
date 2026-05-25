@@ -6,6 +6,21 @@ interface Ch07Env {
   fs: VirtualFs;
 }
 
+// TODO(real-env-verification): Ch 07 is a real-env chapter, but this checker
+// only inspects vfs sentinel files (`.progress/claude-md-written`, etc.).
+// A vfs sentinel proves the user clicked the「我跑完了」button — it does NOT
+// prove that `~/accounting-learner/CLAUDE.md` (or `scripts/invoice_ocr.py`)
+// actually exists on the user's filesystem.
+//
+// The Tauri-side `read_user_file` IPC IS implemented (src-tauri/src/commands/fs.rs
+// + src/modules/RealEnvBridge/invoke.ts `readUserFile`), so the missing piece
+// is plumbing it through the Checker module's env shape (currently VirtualFs-only)
+// and updating tests to mock the IPC.
+//
+// This is a cross-cutting change that affects all real-env chapter checkers
+// (Ch 5-10, 12-15), not just Ch 07 — should be done in one pass as a dedicated
+// task rather than patched per-chapter. Tracked in REVIEW-TRIAGE.md Ch 07 #5.
+
 export const check: CheckerFn = async (env) => {
   const fs = (env as unknown as Ch07Env).fs;
   if (!fs) {
