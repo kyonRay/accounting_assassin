@@ -136,9 +136,15 @@ AI 的职责到「按映射表翻译」为止；遇到表里没有的标签，AI
     初始内容用我下面在课文里给的那张映射表为模板。
 
   make_vouchers.py 要求：
-  1. 读取 ~/accounting-learner/capstone-a/invoice-ocr/outputs/ 下最新的 invoice_summary_YYYY-MM.xlsx
+  0. 启动时先问我：「你要关哪一个月的账？(例如 2026-05)」——**月末关的是上一个完整月份**的账。
+     默认值就是上月（今天若是 2026-06-02，默认 2026-05；今天若是 2026-01-05，默认 2025-12）。
+     直接按回车接受默认；同时接受 `--period 2026-05` 命令行参数以便非交互运行。
+     **不要用 `datetime.now()` 拼文件名**——文件名要反映会计期间，不是脚本运行日期。
+  1. 读取 ~/accounting-learner/capstone-a/invoice-ocr/outputs/invoice_summary_<period>.xlsx
+     （**按 period 显式查找**，不要『取 outputs/ 下最新的』——会拿错账期）
      取「主表」sheet 里的发票记录（列：日期/商家/金额/税号/文件名）
-  2. 读取 ~/accounting-learner/capstone-a/bank-classifier/outputs/ 下最新的 bank_classified_YYYY-MM.csv
+  2. 读取 ~/accounting-learner/capstone-a/bank-classifier/outputs/bank_classified_<period>.csv
+     （同样按 period 显式查找）
      取全部分类记录（列：日期/摘要/金额/分类 等；金额负数 = 出账，正数 = 入账）
   3. 按「**同日 + 同金额 (±0.01)**」做精确匹配，配对银行流水与发票（注意：金额比较用绝对值）
      —— 故意保守的规则。信用卡入账日错位 >1 天的情况很常见，宁可手动多配，也不要错配。
@@ -149,20 +155,31 @@ AI 的职责到「按映射表翻译」为止；遇到表里没有的标签，AI
          * 未命中 → **整行进 unmatched.csv（reason = "无科目映射"）**，不要默认填「管理费用-其他」
      - 入账：在 CREDIT_MAP 里查「分类」字段，规则同上（借方 = 银行存款，贷方 = 查表结果）
      - 金额取绝对值
-     - 凭证号格式 YYYY-MM-序号（如 2026-05-001）
+     - 凭证号格式 <period>-序号（如 2026-05-001）
      - 日期：有匹配发票 → 发票日期；无匹配 → 银行日期
      - 摘要：银行摘要字段
   5. 同时写两份输出：
-     - outputs/vouchers_YYYY-MM.xlsx
+     - outputs/vouchers_<period>.xlsx
          · sheet「凭证」：方向 + 科目都明确的行
          · sheet「待核查-银行」：本月银行流水里没找到对应发票的行
          · sheet「待核查-发票」：本月发票里没找到对应流水的行
-     - outputs/unmatched_YYYY-MM.csv
+     - outputs/unmatched_<period>.csv
          · 所有「科目映射表里没有这个分类标签」的行，列：原始分类/银行日期/摘要/金额/reason
          · **此表为空** 比「都默认填管理费用-其他」更安全 —— 会计要看的就是这张表
-  6. 运行结束打印：生成凭证 X 张，待核查-银行 Y 笔，待核查-发票 Z 张，无科目映射 W 行（见 unmatched_YYYY-MM.csv）
+  6. 运行结束打印两段：
+     第一段 —— 计数：
+       会计期间: <period>
+       生成凭证 N 张，待核查-银行 Y 笔，待核查-发票 Z 张，无科目映射 U 行（见 unmatched_<period>.csv）
+     第二段 —— **闭环校验**（防「假成功」，必须打印）：
+       ===== 月结闭环校验 =====
+       凭证总笔数 (vouchers_<period>.xlsx · 凭证 sheet)  = N
+       银行流水总笔数 (bank_classified_<period>.csv)     = M
+       待核查笔数 (unmatched_<period>.csv)               = U
+       校验:  N + U = ?  ;  应该 = M  （差 ≤ 1 笔人工兜底）
+     如果 N + U ≠ M，必须额外打印一行红字（ANSI 红色 `\033[31m...\033[0m` 即可）：
+       ⚠️  数字不闭环，<period> 账需要会计逐笔核对再封账
 
-  只用 pandas、openpyxl、pathlib、datetime、sys。
+  只用 pandas、openpyxl、pathlib、datetime、sys、argparse。
   如果输入文件不存在，打印提示后正常退出（不崩溃）。
   ```
 
@@ -228,7 +245,7 @@ Python 脚本可以把四个脚本串成一个 `run_all.py`，但它是静态的
 >
   先创建目录，然后让 Claude 帮你把下面的内容写入 `~/.claude/skills/month-end-close/SKILL.md`：
 
-  ```
+  ````
   帮我创建 ~/.claude/skills/month-end-close/SKILL.md，内容如下：
 
   ---
@@ -243,51 +260,130 @@ Python 脚本可以把四个脚本串成一个 `run_all.py`，但它是静态的
   当用户说「帮我做本月结账」「做月末结账」「整理本月财务」「月报汇总」时，
   使用这个 skill。
 
+  ## 步骤 0：先确认账期 `<period>`
+
+  在跑任何脚本之前，先问用户：
+
+  ```
+  你要关哪一个月的账？(例如 2026-04) [默认: 2026-04]
+  ```
+
+  - **账期 = 上一个完整月份**。今天是 2026-06-02，默认就是 2026-05；
+    今天是 2026-01-05，默认就是 2025-12。**不是当月**，月末关的是上月的账。
+  - 用户按回车 = 接受默认（上月）；也可以输入别的月份补做。
+  - 拿到 `<period>` 之后，下面四步**全部用同一个 `<period>` 串起来**，
+    并把 `--period <period>` 传给每个脚本。文件名、子目录名、汇总名一律用这个，
+    绝对不能在任何步骤里用 `datetime.now()` 拼文件名。
+
   ## 四步工作流
 
   ### 第一步：发票批量 OCR（invoice-ocr）
 
-  运行 ~/accounting-learner/capstone-a/invoice-ocr/scripts/batch_ocr.py
-  输入：~/accounting-learner/capstone-a/invoice-ocr/inputs/
-  输出：~/accounting-learner/capstone-a/invoice-ocr/outputs/invoice_summary_YYYY-MM.xlsx
+  运行 `~/accounting-learner/capstone-a/invoice-ocr/scripts/batch_ocr.py --period <period>`
+
+  输入：`~/accounting-learner/capstone-a/invoice-ocr/inputs/<period>/`（按账期分子目录）
+  输出：`~/accounting-learner/capstone-a/invoice-ocr/outputs/invoice_summary_<period>.xlsx`
 
   如果「需手填」sheet 非空，停下来告诉用户需要手动补全缺失字段，等用户确认后再继续。
 
   ### 第二步：银行流水分类（bank-classifier）
 
-  运行 ~/accounting-learner/capstone-a/bank-classifier/scripts/bank_classify.py
-  输入：~/accounting-learner/capstone-a/bank-classifier/inputs/ 下第一个 CSV
-  输出：~/accounting-learner/capstone-a/bank-classifier/outputs/bank_classified_YYYY-MM.csv
+  运行 `~/accounting-learner/capstone-a/bank-classifier/scripts/bank_classify.py --period <period>`
+
+  输入：`~/accounting-learner/capstone-a/bank-classifier/inputs/<period>/` 下的 CSV
+  （和 aggregator 同样的约定 —— 按账期分子目录）。
+
+  **不要『取第一个 CSV』**：如果 `inputs/<period>/` 里有多个 CSV
+  （测试文件、上月遗留、不同卡的导出），按文件名匹配规则
+  （比如 `bank_<period>*.csv`）筛选；不匹配的文件**报错并列出**，
+  让用户决定该删还是该改名。Claude 默默拿错账期是月结里最难发现的错。
+
+  输出：`~/accounting-learner/capstone-a/bank-classifier/outputs/bank_classified_<period>.csv`
 
   ### 第三步：凭证生成（voucher-gen）
 
-  运行 ~/accounting-learner/capstone-b/voucher-gen/scripts/make_vouchers.py
-  输入：第一步和第二步的输出文件
+  运行 `~/accounting-learner/capstone-b/voucher-gen/scripts/make_vouchers.py --period <period>`
+  输入：第一步和第二步同 `<period>` 的输出文件（`invoice_summary_<period>.xlsx`、
+  `bank_classified_<period>.csv`）—— 显式按 `<period>` 找文件，不要『拿 outputs/ 下最新的』。
   输出：
-    - ~/accounting-learner/capstone-b/voucher-gen/outputs/vouchers_YYYY-MM.xlsx
-    - ~/accounting-learner/capstone-b/voucher-gen/outputs/unmatched_YYYY-MM.csv
+    - `~/accounting-learner/capstone-b/voucher-gen/outputs/vouchers_<period>.xlsx`
+    - `~/accounting-learner/capstone-b/voucher-gen/outputs/unmatched_<period>.csv`
 
-  如果「待核查」sheet 非空 或 unmatched_YYYY-MM.csv 非空，
+  如果「待核查」sheet 非空 或 `unmatched_<period>.csv` 非空，
   把行数报给用户，等用户处理完（补 subject_map、手动配对）再决定是否继续第四步。
   绝对不要默认填「管理费用-其他」把 unmatched 行混入主表。
 
   ### 第四步：月报汇总（report-aggregator）
 
-  运行 ~/accounting-learner/capstone-a/report-aggregator/scripts/aggregate.py
-  把 invoice_summary_YYYY-MM.xlsx 和 vouchers_YYYY-MM.xlsx 都放入
-  ~/accounting-learner/capstone-a/report-aggregator/inputs/ 后运行汇总
-  输出：~/accounting-learner/capstone-a/report-aggregator/outputs/aggregated_YYYY-MM.xlsx
+  **步骤 0（必须先做）：组织 `inputs/<period>/` 子目录**
 
-  最后把 aggregated_YYYY-MM.xlsx 重命名为 month_end_YYYY-MM.xlsx 并移到
-  ~/accounting-learner/outputs/ 下。
+  问题：`inputs/` 里很可能既有上月遗留的文件，也有本月新放进去的文件。
+  Claude 不知道哪些是本月该汇总的，会把两个月的数据都混进 `month_end_YYYY-MM.xlsx`，
+  那么 5 月报表里就会出现 4 月数据 —— 这是月结里最难发现也最致命的错。
+
+  两种处理方式，**任选其一**：
+
+  - **(a) 每次跑前清空 inputs/**：
+    `rm -f ~/accounting-learner/capstone-a/report-aggregator/inputs/*.xlsx`
+    —— 简单，但你失去了上月文件的归档。
+
+  - **(b) 按账期分子目录（推荐）**：
+    把汇总输入按账期分别放进
+    `~/accounting-learner/capstone-a/report-aggregator/inputs/2026-05/` /
+    `~/accounting-learner/capstone-a/report-aggregator/inputs/2026-04/` …
+    aggregator 跑 5 月时**只读** `inputs/2026-05/` 这个子目录，不碰其它月份。
+    `aggregate.py --period 2026-05` 自动只读对应子目录。
+
+  **步骤 1：复制本月输入到 `inputs/<period>/` 并运行汇总**
+
+  - 把 `invoice_summary_<period>.xlsx` 和 `vouchers_<period>.xlsx` 复制到
+    `~/accounting-learner/capstone-a/report-aggregator/inputs/<period>/` 下
+    （不要直接放在 `inputs/` 根目录）
+  - 运行 `~/accounting-learner/capstone-a/report-aggregator/scripts/aggregate.py --period <period>`
+  - 输出：`~/accounting-learner/capstone-a/report-aggregator/outputs/aggregated_<period>.xlsx`
+
+  最后把 `aggregated_<period>.xlsx` 重命名为 `month_end_<period>.xlsx` 并移到
+  `~/accounting-learner/outputs/` 下。
+
+  ### 闭环校验（最后一步：防「假成功」）
+
+  脚本结束前必须打印闭环校验摘要：
+
+  ```
+  ===== 月结闭环校验 =====
+  会计期间: <period>
+  凭证总笔数 (vouchers_<period>.xlsx · 凭证 sheet)  = N
+  银行流水总笔数 (bank_classified_<period>.csv)     = M
+  待核查笔数 (unmatched_<period>.csv)               = U
+  校验:  N + U  应该 =  M  （差 ≤ 1 笔人工兜底）
+  ```
+
+  如果 `N + U ≠ M`，最后一句话**必须**红字提示：
+
+  ```
+  ⚠️  数字不闭环，<period> 账需要会计逐笔核对再封账
+  ```
+
+  **判断成功的判据：** 不是『SKILL 跑完了』，而是『最后那行打印的 `N + U = M`』。
+  跑完不等于跑对——闭环数字对得上，才能封账。
 
   ## 注意
 
-  - YYYY-MM 统一用当月日期
+  - **账期是什么？** 月末结账 = 关**上一个完整月份**的账。
+    比如今天是 2026-06-02，默认账期就是 2026-05；今天若是 2026-01-05，默认账期就是 2025-12。
+  - **脚本启动时先问一次：『关哪个月的账？』**，默认上月，
+    同时接受 `--period YYYY-MM` 命令行参数以便非交互运行。
+  - **YYYY-MM 一律取自用户输入的会计期间，不要用 `datetime.now()` 拼文件名**——
+    会计要的是「关账月份」，不是「跑脚本的今天」。
+  - **aggregator 不要『拿第一个 CSV/xlsx』**：`inputs/<period>/` 里如果有多个 xlsx
+    （invoice_summary / vouchers / 历史归档），Claude 默认会随机选一个。
+    改成：**enumerate 所有 `inputs/<period>/*.xlsx`，按文件名匹配规则识别
+    （`invoice_summary_<period>.xlsx` / `vouchers_<period>.xlsx`），
+    不匹配的文件报错并列出**，不要静默忽略。
   - 每步运行前先确认输入文件存在，不存在就提示用户
   - 遇到任何退出码非 0 的错误，把错误信息展示给用户，等待用户指令后再决定是否继续
   - 不要修改 inputs/ 下的原始文件
-  ```
+  ````
 
   确认 `SKILL.md` 写入完成后，输入 `/exit` 退出，然后点「我跑完了」。
 
@@ -407,8 +503,12 @@ command -v jq >/dev/null 2>&1 || brew install jq
 这是整个课程的高潮。你将用**一句中文**触发一个完整的四步财务工作流。
 
 在开始之前，确认输入数据就位（至少有一种情况即可）：
-- `capstone-a/invoice-ocr/inputs/` 里有几张发票（PDF 或图片）
-- `capstone-a/bank-classifier/inputs/` 里有银行 CSV 流水文件
+- `capstone-a/invoice-ocr/inputs/<period>/` 里有几张发票（PDF 或图片）
+- `capstone-a/bank-classifier/inputs/<period>/` 里有银行 CSV 流水文件
+
+`<period>` 就是你想关账的那个月（比如 `2026-05`）。不同月份的文件分子目录放，
+**绝对不要混在 `inputs/` 根目录里** —— 否则 aggregator 会把两个月的数据汇总在一起，
+5 月报表里就出现 4 月数据。这是月结里最难发现的错。
 
 如果暂时没有真实数据，也没关系——Claude 会在找不到输入文件时停下来告诉你，你可以让它继续或者先放置测试数据。
 
@@ -443,7 +543,23 @@ command -v jq >/dev/null 2>&1 || brew install jq
   ls ~/accounting-learner/outputs/
   ```
 
-  应该看到 `month_end_2026-05.xlsx`（当月日期）。
+  应该看到 `month_end_<period>.xlsx`（账期 = 上月，比如今天是 2026-06，文件应叫 `month_end_2026-05.xlsx`）。
+
+  **更关键的检查：看 Claude 最后打印的闭环校验摘要。**
+  Skill 跑完之后会输出一段：
+
+  ```
+  ===== 月结闭环校验 =====
+  会计期间: 2026-05
+  凭证总笔数 (vouchers_2026-05.xlsx · 凭证 sheet)  = 78
+  银行流水总笔数 (bank_classified_2026-05.csv)     = 81
+  待核查笔数 (unmatched_2026-05.csv)               = 3
+  校验:  78 + 3 = 81 ✓
+  ```
+
+  **判断成功的标准不是『SKILL 跑完了』，而是『最后那行 N + U = M』**。
+  如果输出末尾出现 `⚠️ 数字不闭环` —— 文件生成了，但数字不对，**这是『假成功』**，
+  必须按下面的恢复清单逐步排查再决定是否封账。
 
   <Callout type="warn" title="如果 Claude 没有自动识别 Skill">
   可能原因：
@@ -458,18 +574,32 @@ command -v jq >/dev/null 2>&1 || brew install jq
   参考 Ch 9 的 Skill 触发排查步骤。
   </Callout>
 
-  <Callout type="tip" title="某一步失败了，怎么办？">
+  <Callout type="tip" title="某一步失败了，怎么办？(简版)">
   Claude 在步骤失败时会展示错误信息并等待你的指示。这是有意设计的——因为 Skill 说明书里写了「遇到错误展示给用户」。
 
-  常见情况：
-  - **输入文件不存在**：放入测试文件后让 Claude 重试那一步
-  - **Python 报错**：把报错信息粘给 Claude，它会帮你修复脚本后重试
-  - **OCR 退出码 4**：有发票字段识别不完整——打开「需手填」sheet，补全后告诉 Claude 继续
-
   出错不代表工作流设计有问题——正是因为工作流知道怎么处理错误，才叫「工程化」。
+  下面那张表是「**卡在哪一步、单独跑哪条命令、从哪里恢复**」的完整清单。
   </Callout>
 
-  看到最终输出文件或 Claude 成功报告全部步骤完成之后，点「我跑完了」。
+  <Callout type="warn" title="恢复清单：卡在哪一步，怎么从中断处恢复（不要从头重跑）">
+  四步工作流的好处是：**任何一步失败，都可以单独把那一步跑通，再让 Skill 从下一步继续**。
+  不要每次出错就从第一步重跑 —— 重跑 OCR 既慢又会污染已经手填好的「需手填」sheet。
+
+  | 卡在哪一步 | 现象 | 单独重跑命令 | 恢复方式 |
+  |---|---|---|---|
+  | **第一步 OCR**（`batch_ocr.py`） | 退出码 3/4，或 `invoice_summary_<period>.xlsx` 未生成 | `cd ~/accounting-learner/capstone-a/invoice-ocr && python3 scripts/batch_ocr.py --period 2026-05` | 看具体错误。退出码 4 = 部分识别成功，去打开「需手填」sheet 把空白字段补全，**保存后不要重跑 OCR**，直接让 Skill 从第二步继续 |
+  | **第二步 bank-classifier**（`bank_classify.py`） | 编码错误 / 列名找不到 / 输出文件不存在 | `cd ~/accounting-learner/capstone-a/bank-classifier && python3 scripts/bank_classify.py --period 2026-05` | 失败原因常见是 GBK/UTF-8 编码问题（Ch 14 §4 教过），或银行 CSV 列名变了。把报错粘给 Claude 让它修脚本，修完单独跑通这一步，再让 Skill 从第三步继续 |
+  | **第三步 voucher-gen**（`make_vouchers.py`） | `unmatched_<period>.csv` 非空 / 「待核查」sheet 非空 | `cd ~/accounting-learner/capstone-b/voucher-gen && python3 scripts/make_vouchers.py --period 2026-05` | 打开 `unmatched_<period>.csv`：每行的「原始分类」就是 `subject_map.py` 里**缺**的标签。手动补进 `DEBIT_MAP` 或 `CREDIT_MAP`，单独重跑 `make_vouchers.py`，确认 unmatched 清零再继续第四步 |
+  | **第四步 aggregator**（`aggregate.py`） | `month_end_<period>.xlsx` 里出现非本月数据 / 文件数不对 | 检查 `~/accounting-learner/capstone-a/report-aggregator/inputs/<period>/` 子目录 | 见上面 SKILL.md 的「步骤 0」—— 确认本月文件齐全且只放在 `inputs/<period>/` 子目录里，不要让根目录或其它月份子目录里的 xlsx 混进来。修完直接重跑 aggregator |
+  | **hook 日志**（`.month-end.log`） | 没有日志，或文件名出现 `<jq-missing>` / `<empty>` | `cat ~/accounting-learner/.month-end.log \| tail -20` | 看最近的事件。如果一条都没有 → 检查 `settings.local.json` 的 matcher（必须含 `Edit\|Write\|MultiEdit`）；如果出现 `<jq-missing>` → 回 §5 第 0 步装 jq；如果文件路径不是 `~/accounting-learner/...` → 检查 case 语句的路径前缀 |
+  | **闭环校验不通过**（`N + U ≠ M`） | 末尾红字提示 `⚠️ 数字不闭环` | 不要急着封账 | 大概率是「待核查」sheet 或 unmatched.csv 没处理完。回到第三步的恢复方式，逐笔补完，再单独重跑 `make_vouchers.py` 和闭环校验脚本（不需要重跑 OCR 和 bank-classifier） |
+
+  **通用原则**：每一步的输出都是磁盘文件，不是内存状态。任何时刻你都可以「只重跑出错的那一步」，
+  前面已经成功的文件继续用。这就是 Ch 14 把工具拆成三个独立目录的回报 —— 现在你可以从任意一步恢复。
+  </Callout>
+
+  看到最终输出文件、并且 Claude 报告 `N + U = M` 闭环校验通过之后，点「我跑完了」。
+  如果闭环校验不通过，先按上面的清单把数字补对，再来点这个按钮。
 </RealStep>
 
 ---
