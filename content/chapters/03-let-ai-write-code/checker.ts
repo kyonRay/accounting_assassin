@@ -36,8 +36,8 @@ export const check: CheckerFn = async (env) => {
   // the fixture invoices.csv is loaded AND contains every category the lesson
   // promised. Catches the case where someone bypassed the sandbox setup
   // (cleared fs, edited fixture, etc.) and would otherwise sail through.
-  let fixtureOk = false;
-  let missingCategories: string[] = [];
+  let fixtureOk: boolean;
+  let missingCategories: string[];
   try {
     const csv = await fs.read("invoices.csv");
     missingCategories = EXPECTED_CATEGORIES.filter((c) => !csv.includes(c));
